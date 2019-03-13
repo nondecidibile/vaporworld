@@ -6,12 +6,24 @@
 
 Malloc * gMalloc = nullptr;
 
-float vertices[] = {
-	-0.5f,-0.5f,0.f,
-	0.5f,-0.5f,0.f,
-	0.5f,0.5f,0.f,
-	-0.5f,0.5f,0.f,
-	0.f, 0.f, 1.f
+union Color {
+	struct {
+		uint8 r,g,b,a;
+	};
+	uint32 data;
+};
+
+struct Vertex {
+	vec3 pos;
+	Color color;
+};
+
+Vertex vertices[] = {
+	{vec3(-0.5f,-0.5f,0.f), {255,0,0,255}},
+	{vec3(0.5f,-0.5f,0.f), {0,100,255,255}},
+	{vec3(0.5f,0.5f,0.f), {255,0,0,255}},
+	{vec3(-0.5f,0.5f,0.f), {0,100,255,255}},
+	{vec3(0.f, 0.f, 1.f), {0,0,255,255}}
 };
 
 uint32 indices[] = {
@@ -54,10 +66,15 @@ int main(){
 	Memory::createGMalloc();
 
 	Map<uint32, float32> keys;
+	Map<uint8, int32> axes;
 
 	initOpenGL();
 	SDL_Window *window = SDL_CreateWindow("OpenGL",0,0,640,360,SDL_WINDOW_OPENGL);
 	SDL_GLContext context = SDL_GL_CreateContext(window);
+
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);
+	glEnable(GL_DEPTH_TEST);
 
 	/* ------------------------------------------------------------- */
 
@@ -93,13 +110,16 @@ int main(){
 	glBufferData(GL_ARRAY_BUFFER,sizeof(vertices),vertices,GL_STATIC_DRAW);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER,sizeof(indices),indices,GL_STATIC_DRAW);
 
-	glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,0,(void*)0);
+	glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,sizeof(Vertex),(void*)offsetof(Vertex,pos));
+	glVertexAttribPointer(1,4,GL_UNSIGNED_BYTE,GL_TRUE,sizeof(Vertex),(void*)offsetof(Vertex,color));
 	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
 
 	/* ------------------------------------------------------------- */
 
 	cameraLocation = vec3(0,0.5,-2);
 	cameraRotation = quat(0,vec3::up);
+	cameraVelocity = vec3::zero;
 	projectionMatrix = mat4::glProjection(M_PI_2, 0.5f);
 
 	int32 viewMatrixLoc = glGetUniformLocation(program,"viewMatrix");
@@ -136,36 +156,50 @@ int main(){
 		prevTick = currTick;
 
 		SDL_Event e;
-		SDL_PollEvent(&e);
-		switch(e.type){
-			case SDL_QUIT:
-				bRunning = false;
-				break;
-			case SDL_KEYDOWN:
-				keys[e.key.keysym.sym] = 1.f;
-				if (e.key.keysym.sym == SDLK_ESCAPE) bRunning = false;
-				break;
-			case SDL_KEYUP:
-				keys[e.key.keysym.sym] = 0.f;
-				break;
-			default:
-				break;
+		while(SDL_PollEvent(&e)){
+			switch(e.type){
+				case SDL_QUIT:
+					bRunning = false;
+					break;
+				case SDL_KEYDOWN:
+					keys[e.key.keysym.sym] = 1.f;
+					if (e.key.keysym.sym == SDLK_ESCAPE) bRunning = false;
+					break;
+				case SDL_KEYUP:
+					keys[e.key.keysym.sym] = 0.f;
+					break;
+				case SDL_MOUSEMOTION:
+					axes[0] = e.motion.xrel;
+					axes[1] = e.motion.yrel;
+					break;
+				default:
+					break;
+			}
 		}
+
+		//float x_rotation = axes[0]*dt;
+		//float y_rotation = axes[1]*dt;
+		//axes[0] = 0; axes[1] = 0;
+		float x_rotation = (keys[SDLK_RIGHT]-keys[SDLK_LEFT])*2*dt;
+		float y_rotation = (keys[SDLK_DOWN]-keys[SDLK_UP])*2*dt;
+		cameraRotation = quat(x_rotation,vec3::up)*quat(y_rotation,cameraRotation.right()) * cameraRotation;
 
 		const float32 accelFactor = 8.f;
 		const float32 brakeFactor = 2.f;
 		vec3 cameraAcceleration = vec3(
-			(keys[SDLK_d] - keys[SDLK_a]) * accelFactor,
+			(keys[SDLK_d] - keys[SDLK_a]),
 			0.f,
-			(keys[SDLK_w] - keys[SDLK_s]) * accelFactor
+			(keys[SDLK_w] - keys[SDLK_s])
 		);
-		cameraVelocity += ((cameraRotation * cameraAcceleration) - cameraVelocity * brakeFactor) * dt;
+		vec3 direction = (cameraRotation * cameraAcceleration);
+		direction.y = 0.0f;
+		if(!direction.isNearlyZero()) direction.normalize();
+		cameraVelocity += (direction * accelFactor - cameraVelocity * brakeFactor) * dt;
 		cameraLocation += cameraVelocity * dt;
 
 		glUniformMatrix4fv(modelMatrixLoc,1,GL_TRUE,model.getTransform().array);
 
 		mat4 cameraMatrix = mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation);
-		//projectionMatrix.print();
 		glUniformMatrix4fv(viewMatrixLoc,1,GL_TRUE,(projectionMatrix * cameraMatrix).array);
 
 		glUniform4fv(modelColorLoc,1,color.buffer);
