@@ -100,7 +100,7 @@ int main(){
 
 	cameraLocation = vec3(0,0.5,-2);
 	cameraRotation = quat(0,vec3::up);
-	projectionMatrix = mat4::glProjection(M_PI/2, 0.25f);
+	projectionMatrix = mat4::glProjection(M_PI_2, 0.5f);
 
 	int32 viewMatrixLoc = glGetUniformLocation(program,"viewMatrix");
 
@@ -152,8 +152,8 @@ int main(){
 				break;
 		}
 
-		const float32 accelFactor = 20.f;
-		const float32 brakeFactor = 10.f;
+		const float32 accelFactor = 8.f;
+		const float32 brakeFactor = 2.f;
 		vec3 cameraAcceleration = vec3(
 			(keys[SDLK_d] - keys[SDLK_a]) * accelFactor,
 			0.f,
@@ -165,6 +165,7 @@ int main(){
 		glUniformMatrix4fv(modelMatrixLoc,1,GL_TRUE,model.getTransform().array);
 
 		mat4 cameraMatrix = mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation);
+		//projectionMatrix.print();
 		glUniformMatrix4fv(viewMatrixLoc,1,GL_TRUE,(projectionMatrix * cameraMatrix).array);
 
 		glUniform4fv(modelColorLoc,1,color.buffer);
