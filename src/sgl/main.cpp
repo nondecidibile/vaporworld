@@ -24,8 +24,13 @@ uint32 indices[] = {
 };
 
 vec3 cameraLocation;
+vec3 cameraVelocity;
 quat cameraRotation;
 mat4 projectionMatrix;
+
+uint64 prevTick;
+uint64 currTick;
+float32 dt;
 
 char* readFile(const char *filename){
 
@@ -47,6 +52,8 @@ char* readFile(const char *filename){
 int main(){
 
 	Memory::createGMalloc();
+
+	Map<uint32, float32> keys;
 
 	initOpenGL();
 	SDL_Window *window = SDL_CreateWindow("OpenGL",0,0,640,360,SDL_WINDOW_OPENGL);
@@ -93,7 +100,7 @@ int main(){
 
 	cameraLocation = vec3(0,0.5,-2);
 	cameraRotation = quat(0,vec3::up);
-	projectionMatrix = mat4::glProjection(M_PI/2);
+	projectionMatrix = mat4::glProjection(M_PI/2, 0.25f);
 
 	int32 viewMatrixLoc = glGetUniformLocation(program,"viewMatrix");
 
@@ -117,16 +124,16 @@ int main(){
 	vec4 color = vec4(1,0,0,1);
 
 	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-	/* ------------------------------------------------------------- */
-
-	bool key_w=false, key_s=false, key_a=false, key_d=false;
-	bool key_left=false, key_right=false;
 	
 	/* ------------------------------------------------------------- */
 
 	bool bRunning = true;
 	while(bRunning){
+
+		// Update delta time
+		currTick = SDL_GetPerformanceCounter();
+		dt = (currTick - prevTick) / (float64)SDL_GetPerformanceFrequency();
+		prevTick = currTick;
 
 		SDL_Event e;
 		SDL_PollEvent(&e);
@@ -135,88 +142,35 @@ int main(){
 				bRunning = false;
 				break;
 			case SDL_KEYDOWN:
-				switch(e.key.keysym.sym){
-					case SDLK_w:
-						key_w = true;
-						break;
-					case SDLK_s:
-						key_s = true;
-						break;
-					case SDLK_a:
-						key_a = true;
-						break;
-					case SDLK_d:
-						key_d = true;
-						break;
-					case SDLK_LEFT:
-						key_left = true;
-						break;
-					case SDLK_RIGHT:
-						key_right = true;
-						break;
-					case SDLK_ESCAPE:
-						bRunning = false;
-						break;
-					default:
-						break;
-				}
+				keys[e.key.keysym.sym] = 1.f;
+				if (e.key.keysym.sym == SDLK_ESCAPE) bRunning = false;
 				break;
 			case SDL_KEYUP:
-				switch(e.key.keysym.sym){
-					case SDLK_w:
-						key_w = false;
-						break;
-					case SDLK_s:
-						key_s = false;
-						break;
-					case SDLK_a:
-						key_a = false;
-						break;
-					case SDLK_d:
-						key_d = false;
-						break;
-					case SDLK_LEFT:
-						key_left = false;
-						break;
-					case SDLK_RIGHT:
-						key_right = false;
-						break;
-					default:
-						break;
-				}
+				keys[e.key.keysym.sym] = 0.f;
 				break;
 			default:
 				break;
 		}
 
-		if(key_w && !key_s){
-			cameraLocation = cameraLocation + mat4::eye(0.05)*cameraRotation.forward();
-		}
-		else if(key_s && !key_w){
-			cameraLocation = cameraLocation + mat4::eye(0.05)*cameraRotation.backward();
-		}
-		if(key_a && !key_d){
-			cameraLocation = cameraLocation + mat4::eye(0.05)*cameraRotation.left();
-		}
-		else if(key_d && !key_a){
-			cameraLocation = cameraLocation + mat4::eye(0.05)*cameraRotation.right();
-		}
-
-		/*if(key_left && !key_right){
-			cameraRotation = quat(-0.1,vec3::up)*cameraRotation;
-		}
-		else if(key_right && !key_left){
-			cameraRotation = quat(0.1,vec3::up)*cameraRotation;
-		}*/
+		const float32 accelFactor = 20.f;
+		const float32 brakeFactor = 10.f;
+		vec3 cameraAcceleration = vec3(
+			(keys[SDLK_d] - keys[SDLK_a]) * accelFactor,
+			0.f,
+			(keys[SDLK_w] - keys[SDLK_s]) * accelFactor
+		);
+		cameraVelocity += ((cameraRotation * cameraAcceleration) - cameraVelocity * brakeFactor) * dt;
+		cameraLocation += cameraVelocity * dt;
 
 		glUniformMatrix4fv(modelMatrixLoc,1,GL_TRUE,model.getTransform().array);
-		mat4 cameraMatrix = mat4::rotation(!cameraRotation)*mat4::translation(-cameraLocation);
-		glUniformMatrix4fv(viewMatrixLoc,1,GL_TRUE,(projectionMatrix*cameraMatrix).array);
+
+		mat4 cameraMatrix = mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation);
+		glUniformMatrix4fv(viewMatrixLoc,1,GL_TRUE,(projectionMatrix * cameraMatrix).array);
 
 		glUniform4fv(modelColorLoc,1,color.buffer);
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		glDrawElements(GL_TRIANGLES,sizeof(indices)/sizeof(uint32),GL_UNSIGNED_INT,(void*)0);
+		glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(uint32), GL_UNSIGNED_INT, (void*)0);
 
 		SDL_GL_SwapWindow(window);
 	}

@@ -312,7 +312,7 @@ public:
 			search(_search)
 		{
 			// Find first node
-			node = node->find(search);
+			if (node) node = node->find(search);
 		}
 
 	public:
