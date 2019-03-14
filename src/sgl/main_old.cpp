@@ -18,7 +18,42 @@ struct Vertex {
 	Color color;
 };
 
+Vertex vertices[] = {
+	{vec3(-0.5f,-0.5f,0.f), {0,0,255,255}},
+	{vec3(0.5f,-0.5f,0.f), {0,0,255,255}},
+	{vec3(0.5f,0.5f,0.f), {0,0,255,255}},
+	{vec3(-0.5f,0.5f,0.f), {0,0,255,255}},
+	{vec3(0.f, 0.f, 1.f), {0,0,255,255}},
+	// upper part of the cube
+	{vec3(-0.5f,-0.5f,1.f), {0,0,255,255}},
+	{vec3(0.5f,-0.5f,1.f), {0,0,255,255}},
+	{vec3(0.5f,0.5f,1.f), {0,0,255,255}},
+	{vec3(-0.5f,0.5f,1.f), {0,0,255,255}}
+};
 
+uint32 indices[] = {
+	// pyramid
+	0,2,1,
+	0,3,2,
+	0,1,4,
+	1,2,4,
+	3,4,2,
+	0,4,3,
+	// cube
+	0,2,1,
+	0,3,2,
+	5,0,6,
+	0,1,6,
+	8,3,0,
+	5,8,0,
+	7,2,3,
+	7,3,8,
+	7,1,2,
+	6,1,7,
+	5,7,8,
+	5,6,7
+
+};
 
 vec3 cameraLocation;
 vec3 cameraVelocity;
@@ -57,7 +92,8 @@ int main(){
 	SDL_Window *window = SDL_CreateWindow("OpenGL",0,0,640,360,SDL_WINDOW_OPENGL);
 	SDL_GLContext context = SDL_GL_CreateContext(window);
 
-	//glEnable(GL_CULL_FACE);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);
 	glEnable(GL_DEPTH_TEST);
 
 	/* ------------------------------------------------------------- */
@@ -78,46 +114,6 @@ int main(){
 
 	glLinkProgram(program);
 	glUseProgram(program);
-
-	/* ------------------------------------------------------------- */
-
-	const float blockSize = 32.0f;
-	const float blockStep = 0.5f;
-	const uint32 blockNum = (uint32)(blockSize/blockStep);
-	const uint32 bufferSize = (uint32)powf(blockNum,2);
-	Vertex *vertices = (Vertex*) malloc(bufferSize*sizeof(Vertex));
-	const uint32 numIndices = (uint32)(blockNum-1)*(blockNum-1)*6;
-	uint32 *indices = (uint32*) malloc(numIndices*sizeof(uint32));
-	for(uint32 i=0, idx=0; i<bufferSize; i++){
-		const uint32 x = i%blockNum, y = i/blockNum;
-
-		float r = -0.5+(float)(rand()%1000)/1000.0;
-		float h = ((x>0)?vertices[i-1].pos[1]:0) + ((y>0)?vertices[i-blockNum].pos[1]:0);
-		if(x>0 && y>0) h = h/2;
-		h += r;
-		if(h>2.0) h=2.0;
-		if(h<-2.0) h=-2.0;
-
-		vertices[i].pos = vec3(x,0,y)*blockStep;
-		vertices[i].pos.y = h;
-		vertices[i].color = Color{200,0,240,255};
-
-		if(x<blockNum-1 && y<blockNum-1){
-			indices[idx+0] = i;
-			indices[idx+1] = i+1;
-			indices[idx+2] = i+blockNum;
-			indices[idx+3] = i+1;
-			indices[idx+4] = i+blockNum+1;
-			indices[idx+5] = i+blockNum;
-			idx += 6;
-		}
-	}
-
-	for(uint32 i=0, idx=0; i<bufferSize; i++){
-
-		float h = vertices[i].pos.y;
-		if(h<0.0) vertices[i].pos.y=0.0;
-	}
 	
 	/* ------------------------------------------------------------- */
 
@@ -131,8 +127,8 @@ int main(){
 	glBindBuffer(GL_ARRAY_BUFFER,vbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,ebo);
 
-	glBufferData(GL_ARRAY_BUFFER,bufferSize*sizeof(Vertex),vertices,GL_STATIC_DRAW);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER,numIndices*sizeof(uint32),indices,GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER,sizeof(vertices),vertices,GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER,sizeof(indices),indices,GL_STATIC_DRAW);
 
 	glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,sizeof(Vertex),(void*)offsetof(Vertex,pos));
 	glVertexAttribPointer(1,4,GL_UNSIGNED_BYTE,GL_TRUE,sizeof(Vertex),(void*)offsetof(Vertex,color));
@@ -144,7 +140,7 @@ int main(){
 	cameraLocation = vec3(0,0.5,-2);
 	cameraRotation = quat(0,vec3::up);
 	cameraVelocity = vec3::zero;
-	projectionMatrix = mat4::glProjection(M_PI_2, 0.1f);
+	projectionMatrix = mat4::glProjection(M_PI_2, 0.5f);
 
 	int32 viewMatrixLoc = glGetUniformLocation(program,"viewMatrix");
 
@@ -157,9 +153,24 @@ int main(){
 		}
 	};
 
+	Model model1;
+	model1.location = vec3::zero;
+	model1.rotation = quat(M_PI/2, vec3::left);
+	model1.scaling = vec3::unit;
+
+	Model model2;
+	model2.location = vec3(2,0,2);
+	model2.rotation = quat(M_PI/4, vec3::up)*quat(M_PI/2, vec3::left);
+	model2.scaling = vec3::unit;
+
+	Model model3;
+	model3.location = vec3(-2,0,2);
+	model3.rotation = quat(-M_PI/4, vec3::up)*quat(M_PI/2, vec3::left);
+	model3.scaling = vec3::unit;
+
 	int32 modelMatrixLoc = glGetUniformLocation(program,"modelMatrix");
 
-	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	
 	/* ------------------------------------------------------------- */
 
@@ -215,11 +226,16 @@ int main(){
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+		glUniformMatrix4fv(modelMatrixLoc,1,GL_TRUE,model1.getTransform().array);
 		mat4 cameraMatrix = mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation);
 		glUniformMatrix4fv(viewMatrixLoc,1,GL_TRUE,(projectionMatrix * cameraMatrix).array);
+		glDrawElements(GL_TRIANGLES, 18, GL_UNSIGNED_INT, (void*)0);
 
-		glUniformMatrix4fv(modelMatrixLoc,1,GL_TRUE,mat4::translation(vec3(0.f,0.f,0.f)).array);
-		glDrawElements(GL_TRIANGLES,numIndices,GL_UNSIGNED_INT,(void*)0);
+		glUniformMatrix4fv(modelMatrixLoc,1,GL_TRUE,model2.getTransform().array);
+		glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)(18*sizeof(uint32)));
+
+		glUniformMatrix4fv(modelMatrixLoc,1,GL_TRUE,model3.getTransform().array);
+		glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)(18*sizeof(uint32)));
 
 		SDL_GL_SwapWindow(window);
 	}
