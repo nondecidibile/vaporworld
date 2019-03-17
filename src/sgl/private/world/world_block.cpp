@@ -26,17 +26,17 @@ void WorldBlock::init(float minVal, float maxVal, float clipBelow, float clipAbo
     init(minVal,maxVal,clipBelow,clipAbove,0,0);
 }
 
-void WorldBlock::init(float minVal, float maxVal, float clipBelow, float clipAbove, uint32 startCol, uint32 startRow){
+void WorldBlock::init(float minVal, float maxVal, float clipBelow, float clipAbove, uint32 flatY, uint32 flatX){
 
     for(uint32 i=0; i<N; i++){
         uint32 x = getX(i), y = getY(i);
 
         float value;
-        if(x<startCol || y<startRow || (x==0 && y==0)) value = 0.0;
+        if(x<flatX || y<flatY || (x==0 && y==0)) value = 0.0;
         else{
-            value = ((x>0)?data[i-1]:0) + ((y>0)?data[i-Y]:0);
+            value = ((x>0)?data[i-1]:0) + ((y>0)?data[i-X]:0);
             if(x>0 && y>0) value = value/2.0;
-            float r = -0.5+(float)(rand()%1000)/1000.0;
+            float r = (-0.5+(float)(rand()%1000)/1000.0)*(stepSize/0.5);
             value += r;
         }
         if(value < minVal) value = minVal;
@@ -55,28 +55,28 @@ void WorldBlock::init(float minVal, float maxVal, float clipBelow, float clipAbo
     updateVertices();
 }
 
-void WorldBlock::initRight(WorldBlock *leftBlock, float minVal, float maxVal, float clipBelow, float clipAbove){
-    initRight(leftBlock,minVal,maxVal,clipBelow,clipAbove,0);
+void WorldBlock::initAfter(WorldBlock *prevBlock, float minVal, float maxVal, float clipBelow, float clipAbove){
+    initAfter(prevBlock,minVal,maxVal,clipBelow,clipAbove,0);
 }
 
-void WorldBlock::initRight(WorldBlock *leftBlock, float minVal, float maxVal, float clipBelow, float clipAbove, uint32 startRow){
-    if(leftBlock->Y != Y){
-        printf("Error in WorldBlock::initRight. Y sizes do not match.\n");
+void WorldBlock::initAfter(WorldBlock *prevBlock, float minVal, float maxVal, float clipBelow, float clipAbove, uint32 flatX){
+    if(prevBlock->X != X){
+        printf("Error in WorldBlock::initRight. X sizes do not match.\n");
     }
 
     for(uint32 i=0; i<N; i++){
         uint32 x = getX(i), y = getY(i);
 
         float value;
-        if(x==0){
-            float leftValue = leftBlock->data[y*Y + (leftBlock->X - 1)];
-            value = leftValue;
+        if(y==0){
+            float prevValue = prevBlock->data[(prevBlock->Y-1)*X + x];
+            value = prevValue;
         }
-        else if(y<startRow) value = 0.0;
+        else if(x<flatX) value = 0.0;
         else{
-            value = ((x>0)?data[i-1]:0) + ((y>0)?data[i-Y]:0);
+            value = ((x>0)?data[i-1]:0) + ((y>0)?data[i-X]:0);
             if(x>0 && y>0) value = value/2.0;
-            float r = -0.5+(float)(rand()%1000)/1000.0;
+            float r =  (-0.5+(float)(rand()%1000)/1000.0)*(stepSize/0.5);
             value += r;
         }
         if(value < minVal) value = minVal;
@@ -107,10 +107,10 @@ void WorldBlock::updateVertices(){
 		if(x<X-1 && y<Y-1){
 			indices[idx+0] = i;
 			indices[idx+1] = i+1;
-			indices[idx+2] = i+Y;
+			indices[idx+2] = i+X;
 			indices[idx+3] = i+1;
-			indices[idx+4] = i+Y+1;
-			indices[idx+5] = i+Y;
+			indices[idx+4] = i+X+1;
+			indices[idx+5] = i+X;
 			idx += 6;
 		}
 	}

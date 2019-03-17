@@ -10,6 +10,7 @@ out vec4 vColor;
 
 void main(){
 
-    vColor = color;
+    float c = (pos[1]-1)/4;
+    vColor = vec4(1-c,0,c,1);//color;
     gl_Position = viewMatrix * modelMatrix * pos;
 }

@@ -9,9 +9,9 @@ class WorldBlock {
         WorldBlock(uint32 x, uint32 y, float stepSize, float startY);
         ~WorldBlock();
         void init(float minVal, float maxVal, float clipBelow, float clipAbove);
-        void init(float minVal, float maxVal, float clipBelow, float clipAbove, uint32 startCol, uint32 startRow);
-        void initRight(WorldBlock *leftBlock, float minVal, float maxVal, float clipBelow, float clipAbove);
-        void initRight(WorldBlock *leftBlock, float minVal, float maxVal, float clipBelow, float clipAbove, uint32 startRow);
+        void init(float minVal, float maxVal, float clipBelow, float clipAbove, uint32 flatY, uint32 flatX);
+        void initAfter(WorldBlock *prevBlock, float minVal, float maxVal, float clipBelow, float clipAbove);
+        void initAfter(WorldBlock *prevBlock, float minVal, float maxVal, float clipBelow, float clipAbove, uint32 flatX);
         void updateVertices();
         uint32 getX(uint32 i);
         uint32 getY(uint32 i);

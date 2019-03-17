@@ -28,7 +28,7 @@ void World::updateWorld(float y){
     WorldBlock *lastBlock = &(worldBlocks[worldBlocks.getCount()-1]);
     while(y >= lastBlock->startY){
         WorldBlock *b = new WorldBlock(X,Y,stepSize,lastBlock->endY);
-        b->initRight(lastBlock,minVal,maxVal,clipBelow,clipAbove,startRow);
+        b->initAfter(lastBlock,minVal,maxVal,clipBelow,clipAbove,startRow);
         worldBlocks += *b;
         lastBlock = b;
     }
