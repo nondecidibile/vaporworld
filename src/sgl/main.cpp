@@ -76,7 +76,7 @@ int main(){
 
 	/* ------------------------------------------------------------- */
 
-	World world = World(64,2, 0.5, -3,4, 0,4, 0,3);
+	World world = World(32,2, 0.5, -5,5, 0,5, 0,3);
 	uint32 blockVertices = world.worldBlocks[0].N;
 	uint32 blockTrianglesIndices = world.worldBlocks[0].numTrianglesIndices;
 	uint32 blockLinesIndices = world.worldBlocks[0].numLinesIndices;
@@ -190,7 +190,7 @@ int main(){
 
 		Vertex *vertices;
 		uint32 *trianglesIndices, *linesIndices;
-		world.updateWorld(cameraLocation.z+32);
+		world.updateWorld(cameraLocation.z+64);
 		for(int i=0; i<world.worldBlocks.getCount(); i++){
 			WorldBlock *b = &(world.worldBlocks[i]);
 			vertices = b->vertices;
@@ -198,7 +198,7 @@ int main(){
 			linesIndices = b->linesIndices;
 			float pos = b->startY;
 
-			if(cameraLocation.z > b->startY-16 && cameraLocation.z < b->endY+16){
+			if(cameraLocation.z > b->startY-64 && cameraLocation.z < b->endY+64){
 
 				glUseProgram(programT);
 				glUniformMatrix4fv(viewMatrixLocT,1,GL_TRUE,(projectionMatrix * cameraMatrix).array);
@@ -206,11 +206,11 @@ int main(){
 				glBufferData(GL_ARRAY_BUFFER,blockVertices*sizeof(Vertex),vertices,GL_STATIC_DRAW);
 				glBufferData(GL_ELEMENT_ARRAY_BUFFER,blockTrianglesIndices*sizeof(uint32),trianglesIndices,GL_STATIC_DRAW);
 				
-				mat4 transformation = mat4::translation(vec3(-0.25,-1,pos))*mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
+				mat4 transformation = mat4::translation(vec3(-0.25,-0.5,pos))*mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
 				glUniformMatrix4fv(modelMatrixLocT,1,GL_TRUE,transformation.array);
 				glDrawElements(GL_TRIANGLES,blockTrianglesIndices,GL_UNSIGNED_INT,(void*)0);
 
-				transformation = mat4::translation(vec3(0.25,-1,pos))*mat4(-1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
+				transformation = mat4::translation(vec3(0.25,-0.5,pos))*mat4(-1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
 				glUniformMatrix4fv(modelMatrixLocT,1,GL_TRUE,transformation.array);
 				glDrawElements(GL_TRIANGLES,blockTrianglesIndices,GL_UNSIGNED_INT,(void*)0);
 
@@ -218,12 +218,12 @@ int main(){
 				glUniformMatrix4fv(viewMatrixLocL,1,GL_TRUE,(projectionMatrix * cameraMatrix).array);
 
 				glLineWidth(5);
-				transformation = mat4::translation(vec3(-0.25,-1,pos))*mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
+				transformation = mat4::translation(vec3(-0.25,-0.5,pos))*mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
 				glUniformMatrix4fv(modelMatrixLocL,1,GL_TRUE,transformation.array);
 				glBufferData(GL_ELEMENT_ARRAY_BUFFER,blockLinesIndices*sizeof(uint32),linesIndices,GL_STATIC_DRAW);
 				glDrawElements(GL_LINES,blockLinesIndices,GL_UNSIGNED_INT,(void*)0);
 
-				transformation = mat4::translation(vec3(0.25,-1,pos))*mat4(-1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
+				transformation = mat4::translation(vec3(0.25,-0.5,pos))*mat4(-1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
 				glUniformMatrix4fv(modelMatrixLocL,1,GL_TRUE,transformation.array);
 				glBufferData(GL_ELEMENT_ARRAY_BUFFER,blockLinesIndices*sizeof(uint32),linesIndices,GL_STATIC_DRAW);
 				glDrawElements(GL_LINES,blockLinesIndices,GL_UNSIGNED_INT,(void*)0);
