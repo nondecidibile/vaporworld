@@ -45,7 +45,8 @@
 	expansion(PFNGLBLITFRAMEBUFFERPROC, glBlitFramebuffer) \
 	expansion(PFNGLFINISHPROC, glFinish) \
 	expansion(PFNGLBINDTEXTUREPROC, glBindTexture) \
-	expansion(PFNGLCULLFACEPROC, glCullFace)
+	expansion(PFNGLCULLFACEPROC, glCullFace) \
+	expansion(PFNGLLINEWIDTHPROC, glLineWidth)
 
 #define GL_DECLARE_ENTRYPOINTS(type, func) extern type func;
 

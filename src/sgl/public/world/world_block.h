@@ -23,9 +23,9 @@ class WorldBlock {
         float sizeY;
         float endY;
 
-        uint32 numIndices;
         float *data;
         Vertex *vertices;
-        uint32 *indices;
+        uint32 numTrianglesIndices, numLinesIndices;
+        uint32 *trianglesIndices, *linesIndices;
 
 };

@@ -10,16 +10,19 @@ WorldBlock::WorldBlock(uint32 x, uint32 y, float stepSize, float startY){
     sizeY = stepSize*(Y-1);
     endY = startY + sizeY;
 
-    numIndices = (uint32)((x-1)*(y-1)*6);
+    numTrianglesIndices = (uint32)((x-1)*(y-1)*6);
+    numLinesIndices = (uint32)(2*((x-1)*y+(y-1)*x));
     data = (float*)malloc(N*sizeof(float));
     vertices = (Vertex*)malloc(N*sizeof(Vertex));
-    indices = (uint32*)malloc(numIndices*sizeof(uint32));
+    trianglesIndices = (uint32*)malloc(numTrianglesIndices*sizeof(uint32));
+    linesIndices = (uint32*)malloc(numLinesIndices*sizeof(uint32));
 }
 
 WorldBlock::~WorldBlock(){
     free(data);
     free(vertices);
-    free(indices);
+    free(trianglesIndices);
+    free(linesIndices);
 }
 
 void WorldBlock::init(float minVal, float maxVal, float clipBelow, float clipAbove){
@@ -96,7 +99,7 @@ void WorldBlock::initAfter(WorldBlock *prevBlock, float minVal, float maxVal, fl
 }
 
 void WorldBlock::updateVertices(){
-    for(uint32 i=0, idx=0; i<N; i++){
+    for(uint32 i=0, ti=0, li=0; i<N; i++){
 
 		float x = getX(i), y = getY(i);
 
@@ -105,14 +108,26 @@ void WorldBlock::updateVertices(){
 		vertices[i].color = Color{150,0,200,255};
 
 		if(x<X-1 && y<Y-1){
-			indices[idx+0] = i;
-			indices[idx+1] = i+1;
-			indices[idx+2] = i+X;
-			indices[idx+3] = i+1;
-			indices[idx+4] = i+X+1;
-			indices[idx+5] = i+X;
-			idx += 6;
+			trianglesIndices[ti+0] = i;
+			trianglesIndices[ti+1] = i+1;
+			trianglesIndices[ti+2] = i+X;
+			trianglesIndices[ti+3] = i+1;
+			trianglesIndices[ti+4] = i+X+1;
+			trianglesIndices[ti+5] = i+X;
+			ti += 6;
 		}
+
+        if(x>0){
+            linesIndices[li+0] = i-1;
+            linesIndices[li+1] = i;
+            li += 2;
+        }
+        if(y>0){
+            linesIndices[li+0] = i-X;
+            linesIndices[li+1] = i;
+            li += 2;
+        }
+
 	}
 }
 
