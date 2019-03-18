@@ -68,9 +68,11 @@ int main(){
 
 	/* ------------------------------------------------------------- */
 
-	World world = World(64,2, 0.5, 1,5, 1,5, 0,0);
-	uint32 blockVertices = world.worldBlocks[0].N;
-	uint32 blockIndices = world.worldBlocks[0].numIndices;
+	World world = World(64,64,0,5,0.5);
+	uint32 numVertices = world.getNumVert();
+	uint32 numIndices = world.getNumInd();
+	Vertex *vertices = world.vertices;
+	uint32 *indices = world.indices;	
 	
 	/* ------------------------------------------------------------- */
 
@@ -176,36 +178,14 @@ int main(){
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		Vertex *vertices;
-		uint32 *indices;
-		world.updateWorld(cameraLocation.z+32);
-		for(int i=0; i<world.worldBlocks.getCount(); i++){
-			WorldBlock *b = &(world.worldBlocks[i]);
-			vertices = b->vertices;
-			indices = b->indices;
-			float pos = b->startY;
-
-			if(cameraLocation.z > b->startY-16 && cameraLocation.z < b->endY+16){
-				glBufferData(GL_ARRAY_BUFFER,blockVertices*sizeof(Vertex),vertices,GL_STATIC_DRAW);
-				glBufferData(GL_ELEMENT_ARRAY_BUFFER,blockIndices*sizeof(uint32),indices,GL_STATIC_DRAW);
+		world.updateWorld(cameraLocation.x,cameraLocation.z);
+		
+		glBufferData(GL_ARRAY_BUFFER,numVertices*sizeof(Vertex),vertices,GL_STATIC_DRAW);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER,numIndices*sizeof(uint32),indices,GL_STATIC_DRAW);
 				
-				mat4 transformation = mat4::translation(vec3(0,0,pos))*mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
-				glUniformMatrix4fv(modelMatrixLoc,1,GL_TRUE,transformation.array);
-				glDrawElements(GL_TRIANGLES,blockIndices,GL_UNSIGNED_INT,(void*)0);
-
-				transformation = mat4::translation(vec3(0,0,pos))*mat4(-1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
-				glUniformMatrix4fv(modelMatrixLoc,1,GL_TRUE,transformation.array);
-				glDrawElements(GL_TRIANGLES,blockIndices,GL_UNSIGNED_INT,(void*)0);
-			
-				transformation = mat4::translation(vec3(0,0,pos))*mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,1);
-				glUniformMatrix4fv(modelMatrixLoc,1,GL_TRUE,transformation.array);
-				glDrawElements(GL_TRIANGLES,blockIndices,GL_UNSIGNED_INT,(void*)0);
-
-				transformation = mat4::translation(vec3(0,0,pos))*mat4(-1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,1);
-				glUniformMatrix4fv(modelMatrixLoc,1,GL_TRUE,transformation.array);
-				glDrawElements(GL_TRIANGLES,blockIndices,GL_UNSIGNED_INT,(void*)0);
-			}
-		}
+		mat4 transformation = mat4::translation(vec3(0,-5,0))*mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
+		glUniformMatrix4fv(modelMatrixLoc,1,GL_TRUE,transformation.array);
+		glDrawElements(GL_TRIANGLES,numIndices,GL_UNSIGNED_INT,(void*)0);
 
 		SDL_GL_SwapWindow(window);
 	}
