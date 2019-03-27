@@ -1,0 +1,22 @@
+#pragma once
+
+#include "core_types.h"
+#include "hal/platform_math.h"
+
+//////////////////////////////////////////////////
+// Math includes
+//////////////////////////////////////////////////
+
+#include "math_fwd.h"
+#include "vec2.h"
+#include "vec3.h"
+#include "vec4.h"
+#include "quat.h"
+#include "mat3.h"
+#include "mat4.h"
+
+//////////////////////////////////////////////////
+// Math namespace
+//////////////////////////////////////////////////
+
+struct Math : public PlatformMath {};
