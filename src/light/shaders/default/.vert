@@ -22,7 +22,7 @@ void main()
 {
 	vec4 wsPos = modelMatrix * vec4(inPos, 1.f);
 	outVert.pos = vec3(wsPos);
-	outVert.color = vec4(mix(normalize(inPos + 1.f), vec3(1.f), 0.5f), 1.f);
+	outVert.color = vec4(1.f, 0.2f, 0.f, 1.f); //vec4(normalize(inPos), 1.f);
 
 	gl_Position = wsPos;
 }

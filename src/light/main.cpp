@@ -67,7 +67,102 @@ public:
 	FORCE_INLINE T * get() { return reinterpret_cast<T*>(buffer); }
 };
 
+void catchError()
+{
+	uint32 err = glGetError();
+	if (err != GL_NO_ERROR)
+		printf("gl error #%x\n", err);
+};
 
+class GBuffer
+{
+public:
+	/// GBuffer names
+	enum TextureName
+	{
+		GBUFFER_POSITION	= 0,
+		GBUFFER_NORMAL		= 1,
+		GBUFFER_COLOR		= 2,
+		GBUFFER_DEPTH		= 3,
+		GBUFFER_BACKBUFFER	= 4,
+
+		GBUFFER_NUM_BUFFERS
+	};
+
+	/// Framebuffer in use
+	uint32 framebuffer;
+
+	/// Texture buffers
+	uint32 buffers[GBUFFER_NUM_BUFFERS];
+
+public:
+	/// Initialize GBuffer
+	void init()
+	{
+		// Create framebuffer
+		glGenFramebuffers(1, &framebuffer);
+		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+
+		// Create the textures
+		glGenTextures(GBUFFER_NUM_BUFFERS, buffers);
+
+		// Position
+		glBindTexture(GL_TEXTURE_2D, buffers[GBUFFER_POSITION]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, 1280, 720, 0, GL_RGB, GL_FLOAT, nullptr);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + GBUFFER_POSITION, GL_TEXTURE_2D, buffers[GBUFFER_POSITION], 0);
+
+		// Normal
+		glBindTexture(GL_TEXTURE_2D, buffers[GBUFFER_NORMAL]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, 1280, 720, 0, GL_RGB, GL_FLOAT, nullptr);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + GBUFFER_NORMAL, GL_TEXTURE_2D, buffers[GBUFFER_NORMAL], 0);
+
+		// Color
+		glBindTexture(GL_TEXTURE_2D, buffers[GBUFFER_COLOR]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1280, 720, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + GBUFFER_COLOR, GL_TEXTURE_2D, buffers[GBUFFER_COLOR], 0);
+
+		// Depth
+		glBindTexture(GL_TEXTURE_2D, buffers[GBUFFER_DEPTH]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, 1280, 720, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, buffers[GBUFFER_DEPTH], 0);
+
+		// Backbuffer
+		glBindTexture(GL_TEXTURE_2D, buffers[GBUFFER_BACKBUFFER]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 1280, 720, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + GBUFFER_BACKBUFFER, GL_TEXTURE_2D, buffers[GBUFFER_BACKBUFFER], 0);
+
+
+		uint32 drawBuffers[] = {
+			GL_COLOR_ATTACHMENT0 + GBUFFER_POSITION,
+			GL_COLOR_ATTACHMENT0 + GBUFFER_NORMAL,
+			GL_COLOR_ATTACHMENT0 + GBUFFER_COLOR
+		};
+		glDrawBuffers(3, drawBuffers);
+
+		uint32 status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		if (status != GL_FRAMEBUFFER_COMPLETE)
+			printf("Framebuffer error %x:%u\n", status, status);
+
+		// Reset default framebuffer
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
+
+	/// Bind for writing
+	void bind(GLenum target = GL_FRAMEBUFFER)
+	{
+		glBindFramebuffer(target, framebuffer);
+	}
+};
+
+GBuffer gBuffer;
 
 int32 main()
 {
@@ -79,6 +174,7 @@ int32 main()
 
 	SDL_Window * window = SDL_CreateWindow("light", 0, 0, 1280, 720, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
 	SDL_GLContext context = SDL_GL_CreateContext(window);
+	SDL_GL_SetSwapInterval(0);
 
 	glEnable(GL_DEPTH_TEST);
 
@@ -121,6 +217,29 @@ int32 main()
 	glGetProgramiv(prog, GL_LINK_STATUS, &status);
 	if (!status) printf("program not linked correctly\n");
 
+	uint32 lightProg = glCreateProgram();
+	uint32 cShader = glCreateShader(GL_COMPUTE_SHADER);
+	{
+		FileReader source("src/light/shaders/default/.comp");
+		const char * buffer = source.get<char>();
+		glShaderSource(cShader, 1, &buffer, nullptr);
+		glCompileShader(cShader);
+		glAttachShader(lightProg, cShader);
+	}
+
+	status = 1;
+	glGetShaderiv(cShader, GL_COMPILE_STATUS, &status);
+	if (!status) printf("compute shader not compiled correctly\n");
+
+	glLinkProgram(lightProg);
+	glUseProgram(lightProg);
+
+	status = 1;
+	glGetProgramiv(lightProg, GL_LINK_STATUS, &status);
+	if (!status) printf("light program not linked correctly\n");
+
+	gBuffer.init();
+
 	//////////////////////////////////////////////////
 	// Primitive setup
 	//////////////////////////////////////////////////
@@ -155,26 +274,6 @@ int32 main()
 
 	uint32 modelMatrixLoc = glGetUniformLocation(prog, "modelMatrix");
 	uint32 viewMatrixLoc = glGetUniformLocation(prog, "viewMatrix");
-	uint32 cameraLocationLoc = glGetUniformLocation(prog, "cameraLocation");
-
-	//////////////////////////////////////////////////
-	// Ground setup
-	//////////////////////////////////////////////////
-	
-	const float32 groundVertices[] = {
-		-1.f, -1.f, 0.f,
-		1.f, 1.f, 0.f,
-		1.f, -1.f, 0.f,
-
-		-1.f, -1.f, 0.f,
-		-1.f, 1.f, 0.f,
-		1.f, 1.f, 0.f
-	};
-
-	uint32 groundVbo;
-	glGenBuffers(1, &groundVbo);
-	glBindBuffer(GL_ARRAY_BUFFER, groundVbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(groundVertices), groundVertices, GL_STATIC_DRAW);
 
 	//////////////////////////////////////////////////
 	// Actors setup
@@ -202,6 +301,11 @@ int32 main()
 	};
 
 	Actor actors[] = {
+		Actor(
+			vec3(0.f, -1.f, 0.f),
+			quat(M_PI, vec3::right),
+			vec3(50.f)
+		),
 		Actor(
 			vec3(1.f, 0.f, 5.f),
 			quat(6.4f, vec3::up),
@@ -238,14 +342,17 @@ int32 main()
 	// Environment setup
 	//////////////////////////////////////////////////
 	
-	const int32 numLights = 8;
+	const int32 numLights = 4;
 	Vec3<float32, true> lights[numLights];
 
 	for (uint32 i = 0; i < numLights; ++i)
-		lights[i] = vec3(Math::cos(i / (float32)numLights * M_PI), 1.f + rand() / (float32)RAND_MAX, Math::sin(i / (float32)numLights * M_PI)) * 16.f;
+		lights[i] = vec3(Math::cos(i / (float32)numLights * M_PI), 0.f, Math::sin(i / (float32)numLights * M_PI)) * 16.f + vec3::up * 2.f;
 
-	uint32 numLightsLoc = glGetUniformLocation(prog, "numLights");
-	uint32 lightPointsLoc = glGetUniformLocation(prog, "lightPoints");
+	glUseProgram(lightProg);
+
+	uint32 numLightsLoc = glGetUniformLocation(lightProg, "numLights");
+	uint32 lightPointsLoc = glGetUniformLocation(lightProg, "lightPoints");
+	uint32 cameraPosLoc = glGetUniformLocation(lightProg, "cameraPos");
 
 	glUniform1iv(numLightsLoc, 1, &numLights);
 	glUniform3fv(lightPointsLoc, numLights, (float32*)lights);
@@ -257,7 +364,7 @@ int32 main()
 		dt = ((currTick = SDL_GetPerformanceCounter()) - prevTick) / (float32)SDL_GetPerformanceFrequency();
 		prevTick = currTick;
 
-		printf("%f s -> %f fps\n", dt, 1.f / dt);
+		//printf("%f s -> %f fps\n", dt, 1.f / dt);
 
 		SDL_Event e;
 		while (SDL_PollEvent(&e))
@@ -292,13 +399,13 @@ int32 main()
 		cameraRotation = quat((keys[SDLK_RIGHT] - keys[SDLK_LEFT]) * dt, vec3::up) * quat((keys[SDLK_DOWN] - keys[SDLK_UP]) * dt, cameraRotation.right()) * cameraRotation;
 		const mat4 viewMatrix = projectionMatrix * (mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation));
 
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gBuffer.framebuffer);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		// Update camera matrix
 		glUseProgram(prog);
 
 		glUniformMatrix4fv(viewMatrixLoc, 1, GL_TRUE, viewMatrix.array);
-		glUniform3fv(cameraLocationLoc, 1, cameraLocation.buffer);
 
 		// Draw pyramids
 		glBindBuffer(GL_ARRAY_BUFFER, buffers.vbo);
@@ -308,6 +415,39 @@ int32 main()
 			glUniformMatrix4fv(modelMatrixLoc, 1, GL_TRUE, actors[i].getTransform().array);
 			glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(uint32), GL_UNSIGNED_INT, nullptr);
 		}
+
+		// Light pass
+		glUseProgram(lightProg);
+		glUniform3fv(cameraPosLoc, 1, cameraLocation.buffer);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, gBuffer.buffers[GBuffer::GBUFFER_POSITION]);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, gBuffer.buffers[GBuffer::GBUFFER_NORMAL]);
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, gBuffer.buffers[GBuffer::GBUFFER_COLOR]);
+
+		glBindImageTexture(0, gBuffer.buffers[GBuffer::GBUFFER_BACKBUFFER], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+		
+		glDispatchCompute(80, 80, 1);
+		glMemoryBarrier(GL_ALL_BARRIER_BITS);
+
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, gBuffer.framebuffer);
+
+		glReadBuffer(GL_COLOR_ATTACHMENT0 + GBuffer::GBUFFER_POSITION);
+		glBlitFramebuffer(0, 0, 1280, 720, 0, 0, 1280 / 2, 720 / 2, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+		glReadBuffer(GL_COLOR_ATTACHMENT0 + GBuffer::GBUFFER_NORMAL);
+		glBlitFramebuffer(0, 0, 1280, 720, 1280 / 2, 0, 1280, 720 / 2, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+		glReadBuffer(GL_COLOR_ATTACHMENT0 + GBuffer::GBUFFER_COLOR);
+		glBlitFramebuffer(0, 0, 1280, 720, 0, 720 / 2, 1280 / 2, 720, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+		glReadBuffer(GL_COLOR_ATTACHMENT0 + GBuffer::GBUFFER_BACKBUFFER);
+		glBlitFramebuffer(0, 0, 1280, 720, 1280 / 2, 720 / 2, 1280, 720, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		SDL_GL_SwapWindow(window);
 	}

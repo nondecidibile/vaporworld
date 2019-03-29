@@ -13,6 +13,7 @@
 #define GL_ENTRYPOINTS(expansion) \
 	expansion(PFNGLENABLEPROC, glEnable) \
 	expansion(PFNGLDISABLEPROC, glDisable) \
+	expansion(PFNGLGETERRORPROC, glGetError) \
 	expansion(PFNGLCREATEPROGRAMPROC, glCreateProgram) \
 	expansion(PFNGLGETPROGRAMIVPROC, glGetProgramiv) \
 	expansion(PFNGLLINKPROGRAMPROC, glLinkProgram) \
@@ -22,6 +23,8 @@
 	expansion(PFNGLSHADERSOURCEPROC, glShaderSource) \
 	expansion(PFNGLCOMPILESHADERPROC, glCompileShader) \
 	expansion(PFNGLATTACHSHADERPROC, glAttachShader) \
+	expansion(PFNGLDISPATCHCOMPUTEPROC, glDispatchCompute) \
+	expansion(PFNGLMEMORYBARRIERPROC, glMemoryBarrier) \
 	expansion(PFNGLGETUNIFORMLOCATIONARBPROC, glGetUniformLocation) \
 	expansion(PFNGLUNIFORM1UIPROC, glUniform1ui) \
 	expansion(PFNGLUNIFORM1FVPROC, glUniform1fv) \
@@ -36,22 +39,32 @@
 	expansion(PFNGLFLUSHPROC, glFlush) \
 	expansion(PFNGLGENVERTEXARRAYSPROC, glGenVertexArrays) \
 	expansion(PFNGLBINDVERTEXARRAYPROC, glBindVertexArray) \
-	expansion(PFNGLBINDFRAMEBUFFERPROC, glBindFramebuffer) \
 	expansion(PFNGLGENBUFFERSPROC, glGenBuffers) \
 	expansion(PFNGLDELETEBUFFERSPROC, glDeleteBuffers) \
 	expansion(PFNGLBINDBUFFERPROC, glBindBuffer) \
 	expansion(PFNGLBUFFERDATAPROC, glBufferData) \
 	expansion(PFNGLBUFFERSUBDATAPROC, glBufferSubData) \
 	expansion(PFNGLNAMEDBUFFERDATAPROC, glNamedBufferData) \
+	expansion(PFNGLGENTEXTURESPROC, glGenTextures) \
+	expansion(PFNGLACTIVETEXTUREPROC, glActiveTexture) \
+	expansion(PFNGLBINDTEXTUREPROC, glBindTexture) \
+	expansion(PFNGLTEXIMAGE2DPROC, glTexImage2D) \
+	expansion(PFNGLTEXPARAMETERIPROC, glTexParameteri) \
+	expansion(PFNGLGENERATEMIPMAPPROC, glGenerateMipMap) \
+	expansion(PFNGLBINDIMAGETEXTUREEXTPROC, glBindImageTexture) \
 	expansion(PFNGLVERTEXATTRIBPOINTERPROC, glVertexAttribPointer) \
 	expansion(PFNGLENABLEVERTEXATTRIBARRAYPROC, glEnableVertexAttribArray) \
 	expansion(PFNGLDRAWARRAYSPROC, glDrawArrays) \
 	expansion(PFNGLDRAWELEMENTSPROC, glDrawElements) \
+	expansion(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers) \
+	expansion(PFNGLBINDFRAMEBUFFERPROC, glBindFramebuffer) \
+	expansion(PFNGLCHECKFRAMEBUFFERSTATUSPROC, glCheckFramebufferStatus) \
+	expansion(PFNGLFRAMEBUFFERTEXTURE2DPROC, glFramebufferTexture2D) \
 	expansion(PFNGLREADBUFFERPROC, glReadBuffer) \
 	expansion(PFNGLDRAWBUFFERPROC, glDrawBuffer) \
+	expansion(PFNGLDRAWBUFFERSPROC, glDrawBuffers) \
 	expansion(PFNGLBLITFRAMEBUFFERPROC, glBlitFramebuffer) \
 	expansion(PFNGLFINISHPROC, glFinish) \
-	expansion(PFNGLBINDTEXTUREPROC, glBindTexture)
 
 #define GL_DECLARE_ENTRYPOINTS(type, func) extern type func;
 

@@ -1,0 +1,57 @@
+#version 430 core
+
+#define MAX_LIGHT_PER_INSTANCE 16
+
+uniform vec3 lightPoints[MAX_LIGHT_PER_INSTANCE];
+uniform int numLights;
+
+uniform vec3 cameraPos;
+
+layout(binding = 0) uniform sampler2D gPos;
+layout(binding = 1) uniform sampler2D gNorm;
+layout(binding = 2) uniform sampler2D gColor;
+
+layout(binding = 0, rgba32f) writeonly uniform image2D backbuffer;
+
+layout(local_size_x = 16, local_size_y = 9) in;
+
+void main()
+{
+	const ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+
+	// Sample position, normal and color
+	const vec3 pos = texelFetch(gPos, p, 0).xyz;
+	const vec3 norm = texelFetch(gNorm, p, 0).xyz;
+	const vec4 color = texelFetch(gColor, p, 0);
+
+	vec3 resultColor = vec3(0.f);
+
+	if (length(norm) > 0.f)
+	{
+		for (int i = 0; i < numLights; ++i)
+		{
+			const vec3 lightPos = lightPoints[i];
+			const vec3 lightColor = vec3(1.f, 0.8f, 0.6f);
+			const float lightMultiplier = 0.25f;
+			const float lightRadius = 60.f;
+
+			const vec3 lightRay = pos - lightPos;
+			const vec3 lightDir = normalize(lightRay);
+			const float lightIntensity = lightMultiplier * exp(-length(lightRay) / lightRadius);
+
+			const vec3 viewDir = normalize(pos - cameraPos);
+			const vec3 reflectionDir = reflect(-lightDir, norm);
+			
+			// Diffuse color
+			const vec3 diffuseColor = max(dot(-norm, lightDir), 0.f) * lightIntensity * lightColor;
+
+			// Specular color
+			const vec3 specularColor = pow(max(dot(viewDir, reflectionDir), 0.f), 64.f) * lightColor * lightMultiplier;
+
+			// Apply lighting
+			resultColor += (diffuseColor + specularColor) * color.rgb;
+		}
+	}
+
+	imageStore(backbuffer, p, vec4(resultColor, color.a));
+}
