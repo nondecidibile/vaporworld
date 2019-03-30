@@ -53,23 +53,27 @@ int main(){
 	uint32 programL = glCreateProgram();
 	uint32 vertexShaderT = glCreateShader(GL_VERTEX_SHADER);
 	uint32 vertexShaderL = glCreateShader(GL_VERTEX_SHADER);
-	uint32 fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	uint32 fragmentShaderT = glCreateShader(GL_FRAGMENT_SHADER);
+	uint32 fragmentShaderL = glCreateShader(GL_FRAGMENT_SHADER);
 
-	char* vertexShaderSource = readFile("shaders/shader.vert");
-	glShaderSource(vertexShaderT,1,&vertexShaderSource,nullptr);
+	char* vertexShaderTSource = readFile("shaders/shaderT.vert");
+	glShaderSource(vertexShaderT,1,&vertexShaderTSource,nullptr);
 	glCompileShader(vertexShaderT);
+	char* fragmentShaderTSource = readFile("shaders/shaderT.frag");
+	glShaderSource(fragmentShaderT,1,&fragmentShaderTSource,nullptr);
+	glCompileShader(fragmentShaderT);
 	char* vertexShaderLSource = readFile("shaders/shaderL.vert");
 	glShaderSource(vertexShaderL,1,&vertexShaderLSource,nullptr);
 	glCompileShader(vertexShaderL);
-	char* fragmentShaderSource = readFile("shaders/shader.frag");
-	glShaderSource(fragmentShader,1,&fragmentShaderSource,nullptr);
-	glCompileShader(fragmentShader);
+	char* fragmentShaderLSource = readFile("shaders/shaderL.frag");
+	glShaderSource(fragmentShaderL,1,&fragmentShaderLSource,nullptr);
+	glCompileShader(fragmentShaderL);
 
 	glAttachShader(programT,vertexShaderT);
-	glAttachShader(programT,fragmentShader);
+	glAttachShader(programT,fragmentShaderT);
 
 	glAttachShader(programL,vertexShaderL);
-	glAttachShader(programL,fragmentShader);
+	glAttachShader(programL,fragmentShaderL);
 
 	glLinkProgram(programT);
 	glLinkProgram(programL);
@@ -110,6 +114,9 @@ int main(){
 	int32 viewMatrixLocT = glGetUniformLocation(programT,"viewMatrix");
 	int32 viewMatrixLocL = glGetUniformLocation(programL,"viewMatrix");
 
+	uint32 camLocUniformT = glGetUniformLocation(programT, "cameraLocation");
+	uint32 camLocUniformL = glGetUniformLocation(programL, "cameraLocation");
+
 	struct Model {
 		vec3 location;
 		quat rotation;
@@ -121,7 +128,10 @@ int main(){
 
 	int32 modelMatrixLocT = glGetUniformLocation(programT,"modelMatrix");
 	int32 modelMatrixLocL = glGetUniformLocation(programL,"modelMatrix");
-
+	
+	int32 timeColorLocL = glGetUniformLocation(programL,"timeColor");
+	int32 timeColorLocT = glGetUniformLocation(programT,"timeColor");
+	vec4 timeColorVec = vec4(0,0,0,0);
 	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	
 	/* ------------------------------------------------------------- */
@@ -190,7 +200,8 @@ int main(){
 
 		Vertex *vertices;
 		uint32 *trianglesIndices, *linesIndices;
-		world.updateWorld(cameraLocation.z+64);
+		world.updateWorld(cameraLocation.z+256);
+		timeColorVec.x += 0.01;
 		for(int i=0; i<world.worldBlocks.getCount(); i++){
 			WorldBlock *b = &(world.worldBlocks[i]);
 			vertices = b->vertices;
@@ -198,36 +209,46 @@ int main(){
 			linesIndices = b->linesIndices;
 			float pos = b->startY;
 
-			if(cameraLocation.z > b->startY-64 && cameraLocation.z < b->endY+64){
+			if(cameraLocation.z > b->startY-16 && cameraLocation.z < b->endY+16){
 
 				glUseProgram(programT);
+				glUniform4fv(timeColorLocT,1,timeColorVec.buffer);
+				glUniform3fv(camLocUniformT, 1, cameraLocation.buffer);
 				glUniformMatrix4fv(viewMatrixLocT,1,GL_TRUE,(projectionMatrix * cameraMatrix).array);
 
 				glBufferData(GL_ARRAY_BUFFER,blockVertices*sizeof(Vertex),vertices,GL_STATIC_DRAW);
 				glBufferData(GL_ELEMENT_ARRAY_BUFFER,blockTrianglesIndices*sizeof(uint32),trianglesIndices,GL_STATIC_DRAW);
 				
-				mat4 transformation = mat4::translation(vec3(-0.25,-0.5,pos))*mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
+				float height = 0.5;
+
+				mat4 transformation = mat4::translation(vec3(-0.25,-height-0.01,pos))*mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
 				glUniformMatrix4fv(modelMatrixLocT,1,GL_TRUE,transformation.array);
 				glDrawElements(GL_TRIANGLES,blockTrianglesIndices,GL_UNSIGNED_INT,(void*)0);
 
-				transformation = mat4::translation(vec3(0.25,-0.5,pos))*mat4(-1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
+				transformation = mat4::translation(vec3(0.25,-height-0.01,pos))*mat4(-1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
 				glUniformMatrix4fv(modelMatrixLocT,1,GL_TRUE,transformation.array);
 				glDrawElements(GL_TRIANGLES,blockTrianglesIndices,GL_UNSIGNED_INT,(void*)0);
 
 				glUseProgram(programL);
+				glUniform4fv(timeColorLocL,1,timeColorVec.buffer);
+				glUniform3fv(camLocUniformL, 1, cameraLocation.buffer);
 				glUniformMatrix4fv(viewMatrixLocL,1,GL_TRUE,(projectionMatrix * cameraMatrix).array);
+	
+				glEnable(GL_LINE_SMOOTH);
+				glEnable(GL_BLEND);
+				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				glHint(GL_LINE_SMOOTH_HINT, GL_DONT_CARE);
 
-				glLineWidth(5);
-				transformation = mat4::translation(vec3(-0.25,-0.5,pos))*mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
+				glLineWidth(3);
+				transformation = mat4::translation(vec3(-0.25,-height,pos))*mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
 				glUniformMatrix4fv(modelMatrixLocL,1,GL_TRUE,transformation.array);
 				glBufferData(GL_ELEMENT_ARRAY_BUFFER,blockLinesIndices*sizeof(uint32),linesIndices,GL_STATIC_DRAW);
 				glDrawElements(GL_LINES,blockLinesIndices,GL_UNSIGNED_INT,(void*)0);
 
-				transformation = mat4::translation(vec3(0.25,-0.5,pos))*mat4(-1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
+				transformation = mat4::translation(vec3(0.25,-height,pos))*mat4(-1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
 				glUniformMatrix4fv(modelMatrixLocL,1,GL_TRUE,transformation.array);
 				glBufferData(GL_ELEMENT_ARRAY_BUFFER,blockLinesIndices*sizeof(uint32),linesIndices,GL_STATIC_DRAW);
 				glDrawElements(GL_LINES,blockLinesIndices,GL_UNSIGNED_INT,(void*)0);
-
 
 			}
 		}

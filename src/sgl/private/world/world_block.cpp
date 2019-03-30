@@ -107,6 +107,10 @@ void WorldBlock::updateVertices(){
 		vertices[i].pos.y = data[i];
 		vertices[i].color = Color{150,0,200,255};
 
+        float nx = x>0 ? ((vertices[i].pos.y-vertices[i-1].pos.y)/stepSize) : 0;
+        float ny = y>0 ? ((vertices[i].pos.y-vertices[i-X].pos.y)/stepSize) : 0;
+        vertices[i].normal = vec3(nx,0,ny);
+
 		if(x<X-1 && y<Y-1){
 			trianglesIndices[ti+0] = i;
 			trianglesIndices[ti+1] = i+1;

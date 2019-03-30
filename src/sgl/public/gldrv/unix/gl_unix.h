@@ -36,6 +36,7 @@
 	expansion(PFNGLSHADERSOURCEPROC, glShaderSource) \
 	expansion(PFNGLGETUNIFORMLOCATIONPROC, glGetUniformLocation) \
 	expansion(PFNGLUNIFORMMATRIX4FVPROC, glUniformMatrix4fv) \
+	expansion(PFNGLUNIFORM3FVPROC, glUniform3fv) \
 	expansion(PFNGLUNIFORM4FVPROC, glUniform4fv) \
 	expansion(PFNGLPOLYGONMODEPROC, glPolygonMode) \
 	expansion(PFNGLLINKPROGRAMPROC, glLinkProgram) \
@@ -46,7 +47,9 @@
 	expansion(PFNGLFINISHPROC, glFinish) \
 	expansion(PFNGLBINDTEXTUREPROC, glBindTexture) \
 	expansion(PFNGLCULLFACEPROC, glCullFace) \
-	expansion(PFNGLLINEWIDTHPROC, glLineWidth)
+	expansion(PFNGLLINEWIDTHPROC, glLineWidth) \
+	expansion(PFNGLBLENDFUNCPROC, glBlendFunc) \
+	expansion(PFNGLHINTPROC, glHint)
 
 #define GL_DECLARE_ENTRYPOINTS(type, func) extern type func;
 
