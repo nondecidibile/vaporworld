@@ -13,8 +13,6 @@ out Vertex
 {
 	vec3 pos;
 	vec3 norm;
-	vec3 tang;
-	vec3 binorm;
 	vec4 color;
 } outVert;
 
@@ -22,7 +20,8 @@ void main()
 {
 	vec4 wsPos = modelMatrix * vec4(inPos, 1.f);
 	outVert.pos = vec3(wsPos);
+	outVert.norm = inNorm;
 	outVert.color = vec4(mix(normalize(inPos + 1.f), vec3(1.f), 0.5f), 1.f);
 
-	gl_Position = wsPos;
+	gl_Position = viewMatrix * wsPos;
 }

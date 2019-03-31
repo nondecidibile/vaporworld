@@ -1,0 +1,103 @@
+#version 430 core
+
+uniform float time;
+
+layout(std430, binding = 0) buffer PerlinTables
+{
+	int perms[256];
+	vec3 grads[256];
+} perlinTables;
+
+layout(binding = 0, r32f) writeonly uniform image2D testTex;
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+const vec3 cubeCorners[] = {
+	vec3(0.f, 0.f, 0.f),
+	vec3(1.f, 0.f, 0.f),
+	vec3(0.f, 1.f, 0.f),
+	vec3(1.f, 1.f, 0.f),
+	vec3(0.f, 0.f, 1.f),
+	vec3(1.f, 0.f, 1.f),
+	vec3(0.f, 1.f, 1.f),
+	vec3(1.f, 1.f, 1.f),
+};
+
+float gradient(vec3 p, ivec3 i)
+{
+	const vec3 grad = perlinTables.grads[perlinTables.perms[(perlinTables.perms[(perlinTables.perms[i.x & 0xff] + i.y) & 0xff] + i.z) & 0xff]];
+	return dot(p, grad);
+}
+
+float sampleNoise(vec3 p)
+{
+	vec3 i	= floor(p);
+	vec3 t	= fract(p);
+	
+	// Soft curve
+	// @ref https://www.google.com/search?ei=tvSgXMDCGMvisAeL7bawAQ&q=x+*+x+*+%283+-+2+*+x%29&oq=x+*+x+*+%283+-+2+*+x%29&gs_l=psy-ab.3..0i13i30l2j0i22i30l8.4020.9555..9980...0.0..0.119.1704.14j5......0....1..gws-wiz.......0i71j35i39j0j0i67j0i22i10i30.e3qAa8TpAUc
+	vec3 w	= t * t * (3.f - 2.f * t);
+
+	return mix(
+		mix(
+			mix(
+				gradient(t - cubeCorners[0], ivec3(i + cubeCorners[0])),
+				gradient(t - cubeCorners[1], ivec3(i + cubeCorners[1])),
+				w.x
+			),
+			mix(
+				gradient(t - cubeCorners[2], ivec3(i + cubeCorners[2])),
+				gradient(t - cubeCorners[3], ivec3(i + cubeCorners[3])),
+				w.x
+			),
+			w.y
+		),
+		mix(
+			mix(
+				gradient(t - cubeCorners[4], ivec3(i + cubeCorners[4])),
+				gradient(t - cubeCorners[5], ivec3(i + cubeCorners[5])),
+				w.x
+			),
+			mix(
+				gradient(t - cubeCorners[6], ivec3(i + cubeCorners[6])),
+				gradient(t - cubeCorners[7], ivec3(i + cubeCorners[7])),
+				w.x
+			),
+			w.y
+		),
+		w.z
+	);
+}
+
+float octaves(vec3 p, int numOctaves)
+{
+	float f = 1.f;
+	float s = 0.5f;
+	float v = 0.f;
+
+	for (int i = 0; i < numOctaves; ++i, f *= 2.f, s *= 0.5f)
+		v += sampleNoise(p * f) * s;
+	
+	return v;
+}
+
+float monoOctaves(vec3 p, int numOctaves)
+{
+	float f = 1.f;
+	float s = 0.5f;
+	float v = 0.f;
+
+	for (int i = 0; i < numOctaves; ++i, f *= 2.f, s *= 0.5f)
+		v += max(sampleNoise(p * f) * s, 0.f);
+	
+	return v;
+}
+
+void main()
+{
+	vec3 p = vec3(gl_GlobalInvocationID.xyz) / 128.f + vec3(0.f, 0.f, time / 2.f);
+
+	//const float val = (octaves(vec3(p + octaves(p, 3)), 4) + 1.f) / 2.f;
+	const float val = monoOctaves(vec3(p + octaves(p, 3)), 4);
+	imageStore(testTex, ivec2(gl_GlobalInvocationID.xy), vec4(val));
+}

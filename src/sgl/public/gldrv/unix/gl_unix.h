@@ -13,6 +13,13 @@
 #define GL_ENTRYPOINTS(expansion) \
 	expansion(PFNGLENABLEPROC, glEnable) \
 	expansion(PFNGLDISABLEPROC, glDisable) \
+	expansion(PFNGLGETERRORPROC, glGetError) \
+	expansion(PFNGLGETINTEGERVPROC, glGetIntegerv) \
+	expansion(PFNGLGETINTEGERI_VPROC, glGetIntegeri_v) \
+	expansion(PFNGLCLEARPROC, glClear) \
+	expansion(PFNGLCLEARCOLORPROC, glClearColor) \
+	expansion(PFNGLFLUSHPROC, glFlush) \
+	expansion(PFNGLFINISHPROC, glFinish) \
 	expansion(PFNGLCREATEPROGRAMPROC, glCreateProgram) \
 	expansion(PFNGLGETPROGRAMIVPROC, glGetProgramiv) \
 	expansion(PFNGLLINKPROGRAMPROC, glLinkProgram) \
@@ -23,6 +30,8 @@
 	expansion(PFNGLCOMPILESHADERPROC, glCompileShader) \
 	expansion(PFNGLATTACHSHADERPROC, glAttachShader) \
 	expansion(PFNGLGETUNIFORMLOCATIONARBPROC, glGetUniformLocation) \
+	expansion(PFNGLUNIFORM1FPROC, glUniform1f) \
+	expansion(PFNGLUNIFORM1IPROC, glUniform1i) \
 	expansion(PFNGLUNIFORM1UIPROC, glUniform1ui) \
 	expansion(PFNGLUNIFORM1FVPROC, glUniform1fv) \
 	expansion(PFNGLUNIFORM2FVPROC, glUniform2fv) \
@@ -31,27 +40,39 @@
 	expansion(PFNGLUNIFORM1IVPROC, glUniform1iv) \
 	expansion(PFNGLUNIFORM1UIVPROC, glUniform1uiv) \
 	expansion(PFNGLUNIFORMMATRIX4FVPROC, glUniformMatrix4fv) \
-	expansion(PFNGLCLEARCOLORPROC, glClearColor) \
-	expansion(PFNGLCLEARPROC, glClear) \
-	expansion(PFNGLFLUSHPROC, glFlush) \
+	expansion(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers) \
+	expansion(PFNGLDELETEFRAMEBUFFERSPROC, glDeleteFramebuffers) \
+	expansion(PFNGLBINDFRAMEBUFFERPROC, glBindFramebuffer) \
+	expansion(PFNGLFRAMEBUFFERTEXTURE2DPROC, glFramebufferTexture2D) \
 	expansion(PFNGLGENVERTEXARRAYSPROC, glGenVertexArrays) \
 	expansion(PFNGLBINDVERTEXARRAYPROC, glBindVertexArray) \
-	expansion(PFNGLBINDFRAMEBUFFERPROC, glBindFramebuffer) \
 	expansion(PFNGLGENBUFFERSPROC, glGenBuffers) \
 	expansion(PFNGLDELETEBUFFERSPROC, glDeleteBuffers) \
 	expansion(PFNGLBINDBUFFERPROC, glBindBuffer) \
+	expansion(PFNGLBINDBUFFERBASEPROC, glBindBufferBase) \
 	expansion(PFNGLBUFFERDATAPROC, glBufferData) \
-	expansion(PFNGLBUFFERSUBDATAPROC, glBufferSubData) \
 	expansion(PFNGLNAMEDBUFFERDATAPROC, glNamedBufferData) \
+	expansion(PFNGLBUFFERSUBDATAPROC, glBufferSubData) \
+	expansion(PFNGLNAMEDBUFFERSUBDATAPROC, glNamedBufferSubData) \
 	expansion(PFNGLVERTEXATTRIBPOINTERPROC, glVertexAttribPointer) \
 	expansion(PFNGLENABLEVERTEXATTRIBARRAYPROC, glEnableVertexAttribArray) \
+	expansion(PFNGLGENTEXTURESPROC, glGenTextures) \
+	expansion(PFNGLDELETETEXTURESPROC, glDeleteTextures) \
+	expansion(PFNGLACTIVETEXTUREPROC, glActiveTexture) \
+	expansion(PFNGLBINDTEXTUREPROC, glBindTexture) \
+	expansion(PFNGLBINDTEXTURESPROC, glBindTextures) \
+	expansion(PFNGLBINDIMAGETEXTUREPROC, glBindImageTexture) \
+	expansion(PFNGLBINDIMAGETEXTURESPROC, glBindImageTextures) \
+	expansion(PFNGLTEXIMAGE2DPROC, glTexImage2D) \
+	expansion(PFNGLTEXIMAGE3DPROC, glTexImage3D) \
+	expansion(PFNGLTEXPARAMETERIPROC, glTexParameteri) \
 	expansion(PFNGLDRAWARRAYSPROC, glDrawArrays) \
 	expansion(PFNGLDRAWELEMENTSPROC, glDrawElements) \
+	expansion(PFNGLDISPATCHCOMPUTEPROC, glDispatchCompute) \
 	expansion(PFNGLREADBUFFERPROC, glReadBuffer) \
 	expansion(PFNGLDRAWBUFFERPROC, glDrawBuffer) \
+	expansion(PFNGLDRAWBUFFERSPROC, glDrawBuffers) \
 	expansion(PFNGLBLITFRAMEBUFFERPROC, glBlitFramebuffer) \
-	expansion(PFNGLFINISHPROC, glFinish) \
-	expansion(PFNGLBINDTEXTUREPROC, glBindTexture)
 
 #define GL_DECLARE_ENTRYPOINTS(type, func) extern type func;
 

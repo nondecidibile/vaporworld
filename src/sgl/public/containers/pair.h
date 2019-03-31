@@ -12,24 +12,11 @@ template<typename A, typename B>
 class Pair
 {
 public:
-	union
-	{
-		struct {
-			/// First element
-			A first;
+	/// First element
+	A first;
 
-			/// Second element
-			B second;
-		};
-
-		struct {
-			/// Pair key
-			A key;
-
-			/// Pair value
-			B val;
-		};
-	};
+	/// Second element
+	B second;
 	
 
 public:
