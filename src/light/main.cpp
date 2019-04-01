@@ -175,6 +175,15 @@ FORCE_INLINE void ShaderProgram::setUniform<uint32>(const String & key, uint32 v
 }
 
 template<>
+FORCE_INLINE void ShaderProgram::setUniform<Vec2<int32>>(const String & key, Vec2<int32> val)
+{
+	setUniform_internal(key, val, [](uint32 slot, Vec2<int32> val) {
+
+		glUniform2iv(slot, 1, val.buffer);
+	});
+}
+
+template<>
 FORCE_INLINE void ShaderProgram::setUniform<const Vec3<float32, true>&>(const String & key, const Vec3<float32, true> & val)
 {
 	setUniform_internal(key, val, [](uint32 slot, const Vec3<float32, true> & val) {
@@ -239,9 +248,11 @@ int32 main()
 
 	Map<uint32, float32> keys;
 
+	const point2 framebufferSize(1920, 1080);
+
 	initOpenGL();
 
-	SDL_Window * window = SDL_CreateWindow("light", 0, 0, 1280, 720, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
+	SDL_Window * window = SDL_CreateWindow("light", 0, 0, framebufferSize.x, framebufferSize.y, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
 	SDL_GLContext context = SDL_GL_CreateContext(window);
 	SDL_GL_SetSwapInterval(0);
 
@@ -308,7 +319,7 @@ int32 main()
 	uint32 colorBuffer;
 	glGenTextures(1, &colorBuffer);
 	glBindTexture(GL_TEXTURE_2D, colorBuffer);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, 1280, 720, 0, GL_RED, GL_FLOAT, nullptr);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, framebufferSize.x, framebufferSize.y, 0, GL_RED, GL_FLOAT, nullptr);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
@@ -387,14 +398,17 @@ int32 main()
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+		const auto halfFboSize = framebufferSize / 2;
+
 		genProg.bind();
 		genProg.setUniform<float32>("time", currTime);
 		genProg.setUniform<float32>("samplingStep", 0.5f);
+		genProg.setUniform<point2>("framebufferSize", halfFboSize);
 		genProg.setUniform<const mat4&>("projMatrix", projectionMatrix);
 		genProg.setUniform<const mat4&>("viewMatrix", viewMatrix);
 		glBindImageTexture(0, colorBuffer, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, perlinTables);
-		glDispatchCompute(1280 / 32, 720 / 32, 1);
+		glDispatchCompute(halfFboSize.x / 36, halfFboSize.y / 36, 1);
 
 		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
@@ -402,7 +416,7 @@ int32 main()
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, drawFbo);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 		glReadBuffer(GL_COLOR_ATTACHMENT0);
-		glBlitFramebuffer(0, 0, 1280, 720, 0, 0, 1280, 720, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+		glBlitFramebuffer(0, 0, halfFboSize.x, halfFboSize.y, 0, 0, framebufferSize.x, framebufferSize.y, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 

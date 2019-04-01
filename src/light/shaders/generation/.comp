@@ -31,7 +31,7 @@ const vec3 cubeCorners[] = {
 };
 
 /// Local work group setup
-layout(local_size_x = 32, local_size_y = 32) in;
+layout(local_size_x = 36, local_size_y = 36) in;
 
 float gradient(vec3 p, ivec3 i)
 {
@@ -103,19 +103,19 @@ float monoOctaves(vec3 p, int numOctaves)
 	return v;
 }
 
-float sampleVolume(vec3 traceStart, vec3 traceEnd, float samplingStep)
+float sampleVolume(vec3 traceStart, vec3 traceEnd, float samplingStep, int sampleNum)
 {
 	const vec3 ray	= traceEnd - traceStart;
 	const vec3 dir	= normalize(ray);
-	const float len	= min(length(ray), 2.f);
+	const float len	= length(ray);
 
 	float val = 0.f;
-	float s = 1.f;
+	float s = 0.75f;
 
-	for (float t = 0.f; t < len; t += samplingStep, s *= 0.6f)
+	for (float t = 0.7f; t < len && sampleNum > 0 && val < 1.f; t += samplingStep, s *= 0.55f, --sampleNum)
 	{
 		const vec3 p = traceStart + t * dir;
-		val += monoOctaves(p, 4) * s;
+		val += monoOctaves(p, 5) * s;
 	}
 
 	return val;
@@ -123,11 +123,8 @@ float sampleVolume(vec3 traceStart, vec3 traceEnd, float samplingStep)
 
 void main()
 {
-	/// Current position
-	vec3 p = vec3(gl_GlobalInvocationID) / 128.f + vec3(0.f, 0.f, time / 3.f);
-
 	mat4 invProjMatrix = inverse(viewMatrix);
-	vec2 clipCoords = vec2(gl_GlobalInvocationID.xy * 2) / vec2(1280.f, 720.f) - 1.f;
+	vec2 clipCoords = vec2(gl_GlobalInvocationID.xy * 2) / vec2(framebufferSize) - 1.f;
 	vec4 nearPlane	= (invProjMatrix * vec4(clipCoords, -1.f, 1.f));
 	vec4 farPlane	= (invProjMatrix * vec4(clipCoords, 1.f, 1.f));
 	vec3 traceStart	= nearPlane.xyz / nearPlane.w;
@@ -136,6 +133,6 @@ void main()
 	/// Compute noise value
 	/* const vec3 uv = p + vec3(sampleNoise(p));
 	const float val = monoOctaves(vec3(uv), 4); */
-	const float val = sampleVolume(traceStart, traceEnd, 0.4f);
+	const float val = sampleVolume(traceStart, traceEnd, 0.25f, 8);
 	imageStore(testTex, ivec2(gl_GlobalInvocationID.xy), vec4(val));
 }

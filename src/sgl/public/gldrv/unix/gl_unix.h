@@ -38,6 +38,7 @@
 	expansion(PFNGLUNIFORM3FVPROC, glUniform3fv) \
 	expansion(PFNGLUNIFORM4FVPROC, glUniform4fv) \
 	expansion(PFNGLUNIFORM1IVPROC, glUniform1iv) \
+	expansion(PFNGLUNIFORM2IVPROC, glUniform2iv) \
 	expansion(PFNGLUNIFORM1UIVPROC, glUniform1uiv) \
 	expansion(PFNGLUNIFORMMATRIX4FVPROC, glUniformMatrix4fv) \
 	expansion(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers) \
