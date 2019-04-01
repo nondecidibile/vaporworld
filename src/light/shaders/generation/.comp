@@ -16,7 +16,8 @@ layout(std430, binding = 0) readonly buffer PerlinTables
 	vec3	grads[256];
 } perlinTables;
 
-layout(binding = 0, r32f) writeonly uniform image2D testTex;
+//layout(binding = 0, r32f) writeonly uniform image2D testTex;
+layout(binding = 0, r32f) writeonly uniform image3D volumeData;
 
 /// Vertices of a [<0,0,0>, <1,1,1>] cube
 const vec3 cubeCorners[] = {
@@ -31,15 +32,15 @@ const vec3 cubeCorners[] = {
 };
 
 /// Local work group setup
-layout(local_size_x = 32, local_size_y = 32) in;
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
-float gradient(vec3 p, ivec3 i)
+float gradient(vec3 p, ivec3 i, ivec3 period)
 {
-	const vec3 grad = perlinTables.grads[perlinTables.perms[(perlinTables.perms[(perlinTables.perms[i.x & 0xff] + i.y) & 0xff] + i.z) & 0xff]];
+	const vec3 grad = perlinTables.grads[perlinTables.perms[(perlinTables.perms[(perlinTables.perms[i.x % period.x] + i.y) % period.y] + i.z) % period.z]];
 	return dot(p, grad);
 }
 
-float sampleNoise(vec3 p)
+float sampleNoise(vec3 p, ivec3 period)
 {
 	vec3 i	= floor(p);
 	vec3 t	= fract(p);
@@ -51,26 +52,26 @@ float sampleNoise(vec3 p)
 	return mix(
 		mix(
 			mix(
-				gradient(t - cubeCorners[0], ivec3(i + cubeCorners[0])),
-				gradient(t - cubeCorners[1], ivec3(i + cubeCorners[1])),
+				gradient(t - cubeCorners[0], ivec3(i + cubeCorners[0]), period),
+				gradient(t - cubeCorners[1], ivec3(i + cubeCorners[1]), period),
 				w.x
 			),
 			mix(
-				gradient(t - cubeCorners[2], ivec3(i + cubeCorners[2])),
-				gradient(t - cubeCorners[3], ivec3(i + cubeCorners[3])),
+				gradient(t - cubeCorners[2], ivec3(i + cubeCorners[2]), period),
+				gradient(t - cubeCorners[3], ivec3(i + cubeCorners[3]), period),
 				w.x
 			),
 			w.y
 		),
 		mix(
 			mix(
-				gradient(t - cubeCorners[4], ivec3(i + cubeCorners[4])),
-				gradient(t - cubeCorners[5], ivec3(i + cubeCorners[5])),
+				gradient(t - cubeCorners[4], ivec3(i + cubeCorners[4]), period),
+				gradient(t - cubeCorners[5], ivec3(i + cubeCorners[5]), period),
 				w.x
 			),
 			mix(
-				gradient(t - cubeCorners[6], ivec3(i + cubeCorners[6])),
-				gradient(t - cubeCorners[7], ivec3(i + cubeCorners[7])),
+				gradient(t - cubeCorners[6], ivec3(i + cubeCorners[6]), period),
+				gradient(t - cubeCorners[7], ivec3(i + cubeCorners[7]), period),
 				w.x
 			),
 			w.y
@@ -79,31 +80,33 @@ float sampleNoise(vec3 p)
 	);
 }
 
-float octaves(vec3 p, int numOctaves)
+float octaves(vec3 p, int numOctaves, ivec3 period)
 {
 	float f = 1.f;
 	float s = 0.5f;
 	float v = 0.f;
 
 	for (int i = 0; i < numOctaves; ++i, f *= 2.f, s *= 0.5f)
-		v += sampleNoise(p * f) * s;
+		v += sampleNoise(p * f, period) * s;
 	
 	return v;
 }
 
-float monoOctaves(vec3 p, int numOctaves)
+float monoOctaves(vec3 p, int numOctaves, ivec3 period)
 {
 	float f = 1.f;
 	float s = 1.f;
+	ivec3 r = period;
+
 	float v = 0.f;
 
-	for (int i = 0; i < numOctaves; ++i, f *= 2.f, s *= 0.5f)
-		v += max(sampleNoise(p * f) * s, 0.f);
+	for (int i = 0; i < numOctaves; ++i, f *= 2.f, s *= 0.5f, period *= 2)
+		v += max(sampleNoise(p * f, period) * s, 0.f);
 	
 	return v;
 }
 
-float sampleVolume(vec3 traceStart, vec3 traceEnd, float samplingStep)
+/* float sampleVolume(vec3 traceStart, vec3 traceEnd, float samplingStep)
 {
 	const vec3 ray	= traceEnd - traceStart;
 	const vec3 dir	= normalize(ray);
@@ -119,12 +122,12 @@ float sampleVolume(vec3 traceStart, vec3 traceEnd, float samplingStep)
 	}
 
 	return val;
-}
+} */
 
 void main()
 {
 	/// Current position
-	vec3 p = vec3(gl_GlobalInvocationID) / 128.f + vec3(0.f, 0.f, time / 3.f);
+	/* vec3 p = vec3(gl_GlobalInvocationID) / 128.f + vec3(0.f, 0.f, time / 3.f);
 
 	mat4 invProjMatrix = inverse(viewMatrix);
 	vec2 clipCoords = vec2(gl_GlobalInvocationID.xy * 2) / vec2(1280.f, 720.f) - 1.f;
@@ -134,8 +137,10 @@ void main()
 	vec3 traceEnd	= farPlane.xyz / farPlane.w;
 
 	/// Compute noise value
-	/* const vec3 uv = p + vec3(sampleNoise(p));
-	const float val = monoOctaves(vec3(uv), 4); */
 	const float val = sampleVolume(traceStart, traceEnd, 0.4f);
-	imageStore(testTex, ivec2(gl_GlobalInvocationID.xy), vec4(val));
+	imageStore(testTex, ivec2(gl_GlobalInvocationID.xy), vec4(val)); */
+
+	const vec3 p = vec3(gl_GlobalInvocationID) / 128.f;
+	const float val = monoOctaves(p, 8, ivec3(2));
+	imageStore(volumeData, ivec3(gl_GlobalInvocationID), vec4(val));
 }

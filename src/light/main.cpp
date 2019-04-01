@@ -252,22 +252,18 @@ int32 main()
 	//////////////////////////////////////////////////
 	
 	ShaderProgram drawProg;
-	uint32 vShader = glCreateShader(GL_VERTEX_SHADER);
-	uint32 fShader = glCreateShader(GL_FRAGMENT_SHADER);
+	uint32 drawShader = glCreateShader(GL_COMPUTE_SHADER);
 
 	{
-		FileReader source = "src/light/shaders/default/.vert";
+		FileReader source = "src/light/shaders/volume/.comp";
 		const char * buffer = source.get<char>();
-		glShaderSource(vShader, 1, &buffer, nullptr);
-		glCompileShader(vShader);
-		drawProg.setShader(vShader);
-	}
-	{
-		FileReader source = "src/light/shaders/default/.frag";
-		const char * buffer = source.get<char>();
-		glShaderSource(fShader, 1, &buffer, nullptr);
-		glCompileShader(fShader);
-		drawProg.setShader(fShader);
+		glShaderSource(drawShader, 1, &buffer, nullptr);
+		glCompileShader(drawShader);
+		drawProg.setShader(drawShader);
+
+		int32 status = 0;
+		glGetShaderiv(drawShader, GL_COMPILE_STATUS, &status);
+		if (status == GL_FALSE) printf("shader not compiled\n");
 	}
 	
 	drawProg.link();
@@ -314,6 +310,20 @@ int32 main()
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	uint32 volumeData;
+	glGenTextures(1, &volumeData);
+	glBindTexture(GL_TEXTURE_3D, volumeData);
+	glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, 256, 256, 256, 0, GL_RED, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	/// Generate volume data
+	genProg.bind();
+	glBindImageTexture(0, volumeData, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, perlinTables);
+	glDispatchCompute(256 / 8, 256 / 8, 256 / 8);
+	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
 	//////////////////////////////////////////////////
 	// Camera setup
@@ -387,13 +397,13 @@ int32 main()
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-		genProg.bind();
-		genProg.setUniform<float32>("time", currTime);
-		genProg.setUniform<float32>("samplingStep", 0.5f);
-		genProg.setUniform<const mat4&>("projMatrix", projectionMatrix);
-		genProg.setUniform<const mat4&>("viewMatrix", viewMatrix);
+		drawProg.bind();
+		drawProg.setUniform<float32>("time", currTime);
+		drawProg.setUniform<float32>("samplingStep", 0.5f);
+		drawProg.setUniform<const mat4&>("viewMatrix", viewMatrix);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_3D, volumeData);
 		glBindImageTexture(0, colorBuffer, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, perlinTables);
 		glDispatchCompute(1280 / 32, 720 / 32, 1);
 
 		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
