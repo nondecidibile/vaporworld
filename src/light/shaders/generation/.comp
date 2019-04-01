@@ -16,7 +16,6 @@ layout(std430, binding = 0) readonly buffer PerlinTables
 	vec3	grads[256];
 } perlinTables;
 
-//layout(binding = 0, r32f) writeonly uniform image2D testTex;
 layout(binding = 0, r32f) writeonly uniform image3D volumeData;
 
 /// Vertices of a [<0,0,0>, <1,1,1>] cube
@@ -106,41 +105,12 @@ float monoOctaves(vec3 p, int numOctaves, ivec3 period)
 	return v;
 }
 
-/* float sampleVolume(vec3 traceStart, vec3 traceEnd, float samplingStep)
-{
-	const vec3 ray	= traceEnd - traceStart;
-	const vec3 dir	= normalize(ray);
-	const float len	= min(length(ray), 2.f);
-
-	float val = 0.f;
-	float s = 1.f;
-
-	for (float t = 0.f; t < len; t += samplingStep, s *= 0.6f)
-	{
-		const vec3 p = traceStart + t * dir;
-		val += monoOctaves(p, 4) * s;
-	}
-
-	return val;
-} */
-
 void main()
 {
-	/// Current position
-	/* vec3 p = vec3(gl_GlobalInvocationID) / 128.f + vec3(0.f, 0.f, time / 3.f);
+	// Get global position and sample 
+	const vec3 p = vec3(gl_GlobalInvocationID) / 64.f;
+	const float val = monoOctaves(p + monoOctaves(p, 4, ivec3(4)), 9, ivec3(4));
 
-	mat4 invProjMatrix = inverse(viewMatrix);
-	vec2 clipCoords = vec2(gl_GlobalInvocationID.xy * 2) / vec2(1280.f, 720.f) - 1.f;
-	vec4 nearPlane	= (invProjMatrix * vec4(clipCoords, -1.f, 1.f));
-	vec4 farPlane	= (invProjMatrix * vec4(clipCoords, 1.f, 1.f));
-	vec3 traceStart	= nearPlane.xyz / nearPlane.w;
-	vec3 traceEnd	= farPlane.xyz / farPlane.w;
-
-	/// Compute noise value
-	const float val = sampleVolume(traceStart, traceEnd, 0.4f);
-	imageStore(testTex, ivec2(gl_GlobalInvocationID.xy), vec4(val)); */
-
-	const vec3 p = vec3(gl_GlobalInvocationID) / 128.f;
-	const float val = monoOctaves(p, 8, ivec3(2));
+	// Store value
 	imageStore(volumeData, ivec3(gl_GlobalInvocationID), vec4(val));
 }

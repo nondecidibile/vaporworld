@@ -38,6 +38,7 @@
 	expansion(PFNGLUNIFORM3FVPROC, glUniform3fv) \
 	expansion(PFNGLUNIFORM4FVPROC, glUniform4fv) \
 	expansion(PFNGLUNIFORM1IVPROC, glUniform1iv) \
+	expansion(PFNGLUNIFORM2IVPROC, glUniform2iv) \
 	expansion(PFNGLUNIFORM1UIVPROC, glUniform1uiv) \
 	expansion(PFNGLUNIFORMMATRIX4FVPROC, glUniformMatrix4fv) \
 	expansion(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers) \
@@ -67,6 +68,7 @@
 	expansion(PFNGLTEXIMAGE2DPROC, glTexImage2D) \
 	expansion(PFNGLTEXIMAGE3DPROC, glTexImage3D) \
 	expansion(PFNGLTEXPARAMETERIPROC, glTexParameteri) \
+	expansion(PFNGLGENERATEMIPMAPPROC, glGenerateMipMap) \
 	expansion(PFNGLDRAWARRAYSPROC, glDrawArrays) \
 	expansion(PFNGLDRAWELEMENTSPROC, glDrawElements) \
 	expansion(PFNGLDISPATCHCOMPUTEPROC, glDispatchCompute) \

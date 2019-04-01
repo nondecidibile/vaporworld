@@ -4,7 +4,16 @@
 
 #include <SDL.h>
 
+#if SGL_BUILD_RELEASE
+	#define LOG(...)
+#else
+	#define LOG(...) printf(__VA_ARGS__)
+#endif
+
 Malloc * gMalloc = nullptr;
+
+/// Screen variables
+point2 fboSize;
 
 /// Time variables
 float32 dt;
@@ -175,6 +184,15 @@ FORCE_INLINE void ShaderProgram::setUniform<uint32>(const String & key, uint32 v
 }
 
 template<>
+FORCE_INLINE void ShaderProgram::setUniform<Vec2<int32>>(const String & key, Vec2<int32> val)
+{
+	setUniform_internal(key, val, [](uint32 slot, Vec2<int32> val) {
+
+		glUniform2iv(slot, 1, val.buffer);
+	});
+}
+
+template<>
 FORCE_INLINE void ShaderProgram::setUniform<const Vec3<float32, true>&>(const String & key, const Vec3<float32, true> & val)
 {
 	setUniform_internal(key, val, [](uint32 slot, const Vec3<float32, true> & val) {
@@ -241,7 +259,9 @@ int32 main()
 
 	initOpenGL();
 
-	SDL_Window * window = SDL_CreateWindow("light", 0, 0, 1280, 720, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
+	fboSize = point2(2560, 1440);
+
+	SDL_Window * window = SDL_CreateWindow("light", 0, 0, fboSize.x, fboSize.y, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
 	SDL_GLContext context = SDL_GL_CreateContext(window);
 	SDL_GL_SetSwapInterval(0);
 
@@ -304,7 +324,7 @@ int32 main()
 	uint32 colorBuffer;
 	glGenTextures(1, &colorBuffer);
 	glBindTexture(GL_TEXTURE_2D, colorBuffer);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, 1280, 720, 0, GL_RED, GL_FLOAT, nullptr);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, fboSize.x, fboSize.y, 0, GL_RGBA, GL_FLOAT, nullptr);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
@@ -315,15 +335,20 @@ int32 main()
 	glGenTextures(1, &volumeData);
 	glBindTexture(GL_TEXTURE_3D, volumeData);
 	glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, 256, 256, 256, 0, GL_RED, GL_FLOAT, nullptr);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	/// Generate volume data
+	LOG("generating volume data ...\n");
 	genProg.bind();
 	glBindImageTexture(0, volumeData, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, perlinTables);
 	glDispatchCompute(256 / 8, 256 / 8, 256 / 8);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+	glBindTexture(GL_TEXTURE_3D, volumeData);
+	//glGenerateMipMap(GL_TEXTURE_3D);
+	LOG("volume data generated ...\n");
 
 	//////////////////////////////////////////////////
 	// Camera setup
@@ -371,8 +396,8 @@ int32 main()
 		// Camera position and rotation
 		//////////////////////////////////////////////////
 
-		const float32 cameraSpeed = 8.f;
-		const float32 cameraBrake = 3.f;
+		const float32 cameraSpeed = 4.f;
+		const float32 cameraBrake = 2.f;
 		vec3 cameraAcceleration = cameraRotation * vec3(
 			keys[SDLK_d] - keys[SDLK_a],
 			keys[SDLK_SPACE] - keys[SDLK_LCTRL],
@@ -382,7 +407,8 @@ int32 main()
 		cameraLocation += cameraVelocity * dt;
 
 		cameraRotation
-			= quat((keys[SDLK_RIGHT] - keys[SDLK_LEFT]) * dt, vec3::up)
+			= quat((keys[SDLK_RIGHT] - keys[SDLK_LEFT]) * dt, cameraRotation.up())
+			* quat((keys[SDLK_LEFT] - keys[SDLK_RIGHT]) * dt, cameraRotation.forward())
 			* quat((keys[SDLK_DOWN] - keys[SDLK_UP]) * dt, cameraRotation.right())
 			* cameraRotation;
 
@@ -397,22 +423,25 @@ int32 main()
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+		const point2 hFboSize = fboSize;
+
 		drawProg.bind();
 		drawProg.setUniform<float32>("time", currTime);
+		drawProg.setUniform<point2>("fboSize", hFboSize);
 		drawProg.setUniform<float32>("samplingStep", 0.5f);
 		drawProg.setUniform<const mat4&>("viewMatrix", viewMatrix);
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_3D, volumeData);
-		glBindImageTexture(0, colorBuffer, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
-		glDispatchCompute(1280 / 32, 720 / 32, 1);
+		glBindImageTexture(0, colorBuffer, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+		glDispatchCompute(hFboSize.x / 32, hFboSize.y / 32, 1);
 
-		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
 		// Test generation by blitting to viewport
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, drawFbo);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 		glReadBuffer(GL_COLOR_ATTACHMENT0);
-		glBlitFramebuffer(0, 0, 1280, 720, 0, 0, 1280, 720, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+		glBlitFramebuffer(0, 0, hFboSize.x, hFboSize.y, 0, 0, fboSize.x, fboSize.y, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 

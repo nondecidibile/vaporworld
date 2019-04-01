@@ -2,12 +2,12 @@
 
 uniform float time;
 uniform float samplingStep;
-uniform ivec2 framebufferSize;
+uniform ivec2 fboSize;
 uniform mat4 projMatrix;
 uniform mat4 viewMatrix;
 
 layout(binding = 0) uniform sampler3D volumeData;
-layout(binding = 0, r32f) writeonly uniform image2D colorBuffer;
+layout(binding = 0, rgba32f) writeonly uniform image2D colorBuffer;
 
 /// Local work group setup
 layout(local_size_x = 32, local_size_y = 32) in;
@@ -41,19 +41,18 @@ float monoOctaves(vec3 p, int numOctaves)
 	return v;
 }
 
-float sampleVolume(vec3 traceStart, vec3 traceEnd, float samplingStep)
+float sampleVolume(vec3 traceStart, vec3 traceEnd, float samplingStep, int numSamples)
 {
 	const vec3 ray	= traceEnd - traceStart;
 	const vec3 dir	= normalize(ray);
-	const float len	= min(length(ray), 4.f);
 
 	float val = 0.f;
-	float s = 1.f;
+	float s = 0.5f;
 
-	for (float t = 1.f; t < len + 1.f; t += samplingStep, s *= 0.6f)
+	for (float t = 1.f; numSamples > 0 && val < 1.f; t += samplingStep, s *= 0.8f, --numSamples)
 	{
 		const vec3 p = traceStart + t * dir;
-		val += sampleNoise(p) * s;
+		val += sampleNoise(p / 4.f) * s;
 	}
 
 	return val;
@@ -62,13 +61,13 @@ float sampleVolume(vec3 traceStart, vec3 traceEnd, float samplingStep)
 void main()
 {
 	mat4 invProjMatrix = inverse(viewMatrix);
-	vec2 clipCoords = vec2(gl_GlobalInvocationID.xy * 2) / vec2(1280.f, 720.f) - 1.f;
+	vec2 clipCoords = vec2(gl_GlobalInvocationID.xy * 2) / vec2(fboSize) - 1.f;
 	vec4 nearPlane	= (invProjMatrix * vec4(clipCoords, -1.f, 1.f));
 	vec4 farPlane	= (invProjMatrix * vec4(clipCoords, 1.f, 1.f));
 	vec3 traceStart	= nearPlane.xyz / nearPlane.w;
 	vec3 traceEnd	= farPlane.xyz / farPlane.w;
 
 	/// Compute noise value
-	const float val = sampleVolume(traceStart, traceEnd, 0.2f);
-	imageStore(colorBuffer, ivec2(gl_GlobalInvocationID.xy), vec4(val));
+	const float val = sampleVolume(traceStart, traceEnd, 0.12f, 32);
+	imageStore(colorBuffer, ivec2(gl_GlobalInvocationID.xy), vec4(normalize(abs(traceStart) + 1.f)/* vec3(0.3f, 0.6f, 0.933f) */ * val, 1.f));
 }
