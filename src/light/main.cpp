@@ -398,7 +398,7 @@ int32 main()
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-		const auto halfFboSize = framebufferSize / 2;
+		const auto halfFboSize = framebufferSize / 4;
 
 		genProg.bind();
 		genProg.setUniform<float32>("time", currTime);

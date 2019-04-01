@@ -133,6 +133,6 @@ void main()
 	/// Compute noise value
 	/* const vec3 uv = p + vec3(sampleNoise(p));
 	const float val = monoOctaves(vec3(uv), 4); */
-	const float val = sampleVolume(traceStart, traceEnd, 0.25f, 8);
+	const float val = sampleVolume(traceStart, traceEnd, 0.25f, 16);
 	imageStore(testTex, ivec2(gl_GlobalInvocationID.xy), vec4(val));
 }
