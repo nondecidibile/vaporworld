@@ -55,6 +55,7 @@
 	expansion(PFNGLBUFFERSUBDATAPROC, glBufferSubData) \
 	expansion(PFNGLNAMEDBUFFERSUBDATAPROC, glNamedBufferSubData) \
 	expansion(PFNGLVERTEXATTRIBPOINTERPROC, glVertexAttribPointer) \
+	expansion(PFNGLVERTEXATTRIBIPOINTERPROC, glVertexAttribIPointer) \
 	expansion(PFNGLENABLEVERTEXATTRIBARRAYPROC, glEnableVertexAttribArray) \
 	expansion(PFNGLGENTEXTURESPROC, glGenTextures) \
 	expansion(PFNGLDELETETEXTURESPROC, glDeleteTextures) \
@@ -69,6 +70,7 @@
 	expansion(PFNGLDRAWARRAYSPROC, glDrawArrays) \
 	expansion(PFNGLDRAWELEMENTSPROC, glDrawElements) \
 	expansion(PFNGLDISPATCHCOMPUTEPROC, glDispatchCompute) \
+	expansion(PFNGLMEMORYBARRIERPROC, glMemoryBarrier) \
 	expansion(PFNGLREADBUFFERPROC, glReadBuffer) \
 	expansion(PFNGLDRAWBUFFERPROC, glDrawBuffer) \
 	expansion(PFNGLDRAWBUFFERSPROC, glDrawBuffers) \

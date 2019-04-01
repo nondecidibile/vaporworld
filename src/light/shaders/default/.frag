@@ -5,8 +5,7 @@ layout(location = 0) out vec4 fColor;
 in Vertex
 {
 	vec3 pos;
-	vec3 norm;
-	vec4 color;
+	int meta;
 } inVert;
 
 void main()

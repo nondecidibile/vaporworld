@@ -301,17 +301,17 @@ int32 main()
 	glBufferData(GL_SHADER_STORAGE_BUFFER, perlinTableSize, nullptr, GL_STATIC_DRAW);
 	setupPerlin();
 
-	uint32 testFbo;
-	glGenFramebuffers(1, &testFbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, testFbo);
+	uint32 drawFbo;
+	glGenFramebuffers(1, &drawFbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, drawFbo);
 
-	uint32 testTex;
-	glGenTextures(1, &testTex);
-	glBindTexture(GL_TEXTURE_2D, testTex);
+	uint32 colorBuffer;
+	glGenTextures(1, &colorBuffer);
+	glBindTexture(GL_TEXTURE_2D, colorBuffer);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, 1280, 720, 0, GL_RED, GL_FLOAT, nullptr);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, testTex, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -319,6 +319,7 @@ int32 main()
 	// Camera setup
 	//////////////////////////////////////////////////
 	
+	projectionMatrix = mat4::glProjection(M_PI_2, 0.5f);
 	cameraLocation = vec3(0.f, 0.f, -5.f);
 	cameraVelocity = vec3::zero;
 	cameraRotation = quat(0.f, vec3::up);
@@ -370,7 +371,10 @@ int32 main()
 		cameraVelocity += cameraAcceleration * dt;
 		cameraLocation += cameraVelocity * dt;
 
-		cameraRotation = quat((keys[SDLK_RIGHT] - keys[SDLK_LEFT]) * dt, vec3::up) * quat((keys[SDLK_DOWN] - keys[SDLK_UP]) * dt, cameraRotation.right()) * cameraRotation;
+		cameraRotation
+			= quat((keys[SDLK_RIGHT] - keys[SDLK_LEFT]) * dt, vec3::up)
+			* quat((keys[SDLK_DOWN] - keys[SDLK_UP]) * dt, cameraRotation.right())
+			* cameraRotation;
 
 		cameraTransform = mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation);
 		const mat4 viewMatrix = projectionMatrix * cameraTransform;
@@ -383,23 +387,24 @@ int32 main()
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-		/* drawProg.bind();
-		drawProg.setUniform<const mat4&>("modelMatrix", mat4::eye(1));
-		drawProg.setUniform<const mat4&>("viewMatrix", viewMatrix); */
-
-		//glDrawElements(GL_POINTS, sizeof(cubeIndices) / sizeof(cubeIndices[0]), GL_UNSIGNED_INT, nullptr);
-
 		genProg.bind();
 		genProg.setUniform<float32>("time", currTime);
+		genProg.setUniform<float32>("samplingStep", 0.5f);
+		genProg.setUniform<const mat4&>("projMatrix", projectionMatrix);
+		genProg.setUniform<const mat4&>("viewMatrix", viewMatrix);
+		glBindImageTexture(0, colorBuffer, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, perlinTables);
-		glBindImageTexture(0, testTex, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
-		glDispatchCompute(1280 / 8, 720 / 8, 1);
+		glDispatchCompute(1280 / 32, 720 / 32, 1);
+
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
 		// Test generation by blitting to viewport
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, testFbo);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, drawFbo);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 		glReadBuffer(GL_COLOR_ATTACHMENT0);
 		glBlitFramebuffer(0, 0, 1280, 720, 0, 0, 1280, 720, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		SDL_GL_SwapWindow(window);
 	}
