@@ -52,7 +52,7 @@ float sampleVolume(vec3 traceStart, vec3 traceEnd, float samplingStep, int numSa
 	for (float t = 1.f; numSamples > 0 && val < 1.f; t += samplingStep, s *= 0.8f, --numSamples)
 	{
 		const vec3 p = traceStart + t * dir;
-		val += sampleNoise(p / 4.f) * s;
+		val += sampleNoise(p / 1.f) * s;
 	}
 
 	return val;
@@ -67,10 +67,10 @@ vec3 sampleVolumeRgb(vec3 traceStart, vec3 traceEnd, float samplingStep, int num
 	vec3 val = vec3(0.f);
 	float s = 0.5f;
 
-	for (float t = 0.5f; numSamples > 0 && t < len; t += samplingStep, s *= 0.9f, --numSamples)
+	for (float t = 0.7f; numSamples > 0 && t < len; t += samplingStep, s *= 0.9f, --numSamples)
 	{
 		const vec3 p = traceStart + t * dir;
-		val += sampleNoise(p / 4.f) * normalize(abs(p)) * s;
+		val += sampleNoise(p / 4.f) * normalize(0.5f + 0.5f * cos(p)) * s;
 	}
 
 	val = min(val, vec3(1.f));

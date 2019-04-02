@@ -256,14 +256,16 @@ int32 main()
 	srand(clock());
 
 	Map<uint32, float32> keys;
+	Map<String, float32> axes;
 
 	initOpenGL();
 
 	fboSize = point2(1920, 1080);
 
-	SDL_Window * window = SDL_CreateWindow("light", 0, 0, fboSize.x, fboSize.y, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
+	SDL_Window * window = SDL_CreateWindow("light", 0, 0, fboSize.x, fboSize.y, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS | SDL_WINDOW_FULLSCREEN_DESKTOP);
 	SDL_GLContext context = SDL_GL_CreateContext(window);
 	SDL_GL_SetSwapInterval(0);
+	SDL_SetRelativeMouseMode(SDL_TRUE);
 
 	glEnable(GL_DEPTH_TEST);
 
@@ -345,9 +347,6 @@ int32 main()
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, perlinTables);
 	glDispatchCompute(256 / 8, 256 / 8, 256 / 8);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-
-	glBindTexture(GL_TEXTURE_3D, volumeData);
-	//glGenerateMipMap(GL_TEXTURE_3D);
 	LOG("volume data generated ...\n");
 
 	//////////////////////////////////////////////////
@@ -389,6 +388,11 @@ int32 main()
 				case SDL_KEYUP:
 					keys[e.key.keysym.sym] = 0.f;
 					break;
+
+				case SDL_MOUSEMOTION:
+					axes["mouseX"] = e.motion.xrel;
+					axes["mouseY"] = e.motion.yrel;
+					break;
 			}
 		}
 
@@ -407,9 +411,9 @@ int32 main()
 		cameraLocation += cameraVelocity * dt;
 
 		cameraRotation
-			= quat((keys[SDLK_RIGHT] - keys[SDLK_LEFT]) * dt, cameraRotation.up())
-			* quat((keys[SDLK_LEFT] - keys[SDLK_RIGHT]) * dt, cameraRotation.forward())
-			* quat((keys[SDLK_DOWN] - keys[SDLK_UP]) * dt, cameraRotation.right())
+			= quat((keys[SDLK_RIGHT] - keys[SDLK_LEFT] + axes["mouseX"] * 0.2f) * dt, cameraRotation.up())
+			* quat((keys[SDLK_LEFT] - keys[SDLK_RIGHT] + axes["mouseX"] * 0.1f) * dt, cameraRotation.forward())
+			* quat((keys[SDLK_DOWN] - keys[SDLK_UP] + axes["mouseY"] * 0.2f) * dt, cameraRotation.right())
 			* cameraRotation;
 
 		cameraTransform = mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation);
@@ -444,6 +448,10 @@ int32 main()
 		glBlitFramebuffer(0, 0, hFboSize.x, hFboSize.y, 0, 0, fboSize.x, fboSize.y, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		// Consume mouse input
+		axes["mouseX"] = 0.f;
+		axes["mouseY"] = 0.f;
 
 		SDL_GL_SwapWindow(window);
 	}
