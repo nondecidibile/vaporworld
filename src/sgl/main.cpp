@@ -52,13 +52,17 @@ int main(){
 	uint32 programT = glCreateProgram();
 	uint32 programL = glCreateProgram();
 	uint32 vertexShaderT = glCreateShader(GL_VERTEX_SHADER);
-	uint32 vertexShaderL = glCreateShader(GL_VERTEX_SHADER);
+	uint32 geometryShaderT = glCreateShader(GL_GEOMETRY_SHADER);
 	uint32 fragmentShaderT = glCreateShader(GL_FRAGMENT_SHADER);
+	uint32 vertexShaderL = glCreateShader(GL_VERTEX_SHADER);
 	uint32 fragmentShaderL = glCreateShader(GL_FRAGMENT_SHADER);
 
 	char* vertexShaderTSource = readFile("shaders/shaderT.vert");
 	glShaderSource(vertexShaderT,1,&vertexShaderTSource,nullptr);
 	glCompileShader(vertexShaderT);
+	char* geometryShaderTSource = readFile("shaders/shaderT.geom");
+	glShaderSource(geometryShaderT,1,&geometryShaderTSource,nullptr);
+	glCompileShader(geometryShaderT);
 	char* fragmentShaderTSource = readFile("shaders/shaderT.frag");
 	glShaderSource(fragmentShaderT,1,&fragmentShaderTSource,nullptr);
 	glCompileShader(fragmentShaderT);
@@ -70,17 +74,17 @@ int main(){
 	glCompileShader(fragmentShaderL);
 
 	glAttachShader(programT,vertexShaderT);
+	glAttachShader(programT,geometryShaderT);
 	glAttachShader(programT,fragmentShaderT);
+	glLinkProgram(programT);
 
 	glAttachShader(programL,vertexShaderL);
 	glAttachShader(programL,fragmentShaderL);
-
-	glLinkProgram(programT);
 	glLinkProgram(programL);
 
 	/* ------------------------------------------------------------- */
 
-	World world = World(32,2, 0.5, -5,5, 0,5, 0,3);
+	World world = World(32,2, 0.5, -5,5, 0,5, 0,5);
 	uint32 blockVertices = world.worldBlocks[0].N;
 	uint32 blockTrianglesIndices = world.worldBlocks[0].numTrianglesIndices;
 	uint32 blockLinesIndices = world.worldBlocks[0].numLinesIndices;
@@ -107,7 +111,7 @@ int main(){
 	/* ------------------------------------------------------------- */
 
 	cameraLocation = vec3(0,0,0);
-	cameraRotation = quat(0,vec3::up);
+	cameraRotation = quat(-M_PI_2,vec3::up);
 	cameraVelocity = vec3::zero;
 	projectionMatrix = mat4::glProjection(M_PI/2, 0.1f);
 
@@ -221,15 +225,15 @@ int main(){
 				
 				float height = 0.5;
 
-				mat4 transformation = mat4::translation(vec3(-0.25,-height-0.01,pos))*mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
+				/*mat4 transformation = mat4::translation(vec3(-0.25,-height-0.001,pos))*mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
+				glUniformMatrix4fv(modelMatrixLocT,1,GL_TRUE,transformation.array);
+				glDrawElements(GL_TRIANGLES,blockTrianglesIndices,GL_UNSIGNED_INT,(void*)0);*/
+
+				mat4 transformation = mat4::translation(vec3(0.25,-height-0.001,pos))*mat4(-1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
 				glUniformMatrix4fv(modelMatrixLocT,1,GL_TRUE,transformation.array);
 				glDrawElements(GL_TRIANGLES,blockTrianglesIndices,GL_UNSIGNED_INT,(void*)0);
 
-				transformation = mat4::translation(vec3(0.25,-height-0.01,pos))*mat4(-1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
-				glUniformMatrix4fv(modelMatrixLocT,1,GL_TRUE,transformation.array);
-				glDrawElements(GL_TRIANGLES,blockTrianglesIndices,GL_UNSIGNED_INT,(void*)0);
-
-				glUseProgram(programL);
+				/*glUseProgram(programL);
 				glUniform4fv(timeColorLocL,1,timeColorVec.buffer);
 				glUniform3fv(camLocUniformL, 1, cameraLocation.buffer);
 				glUniformMatrix4fv(viewMatrixLocL,1,GL_TRUE,(projectionMatrix * cameraMatrix).array);
@@ -244,12 +248,12 @@ int main(){
 				glUniformMatrix4fv(modelMatrixLocL,1,GL_TRUE,transformation.array);
 				glBufferData(GL_ELEMENT_ARRAY_BUFFER,blockLinesIndices*sizeof(uint32),linesIndices,GL_STATIC_DRAW);
 				glDrawElements(GL_LINES,blockLinesIndices,GL_UNSIGNED_INT,(void*)0);
-
+				
 				transformation = mat4::translation(vec3(0.25,-height,pos))*mat4(-1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
 				glUniformMatrix4fv(modelMatrixLocL,1,GL_TRUE,transformation.array);
 				glBufferData(GL_ELEMENT_ARRAY_BUFFER,blockLinesIndices*sizeof(uint32),linesIndices,GL_STATIC_DRAW);
 				glDrawElements(GL_LINES,blockLinesIndices,GL_UNSIGNED_INT,(void*)0);
-
+				*/
 			}
 		}
 

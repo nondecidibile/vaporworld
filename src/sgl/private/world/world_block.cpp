@@ -109,7 +109,7 @@ void WorldBlock::updateVertices(){
 
         float nx = x>0 ? ((vertices[i].pos.y-vertices[i-1].pos.y)/stepSize) : 0;
         float ny = y>0 ? ((vertices[i].pos.y-vertices[i-X].pos.y)/stepSize) : 0;
-        vertices[i].normal = vec3(nx,0,ny);
+        vertices[i].normal = vec3(stepSize,nx,0)^vec3(0,ny,stepSize);
 
 		if(x<X-1 && y<Y-1){
 			trianglesIndices[ti+0] = i;
