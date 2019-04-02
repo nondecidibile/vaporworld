@@ -1,19 +1,28 @@
 #include "core_types.h"
 #include "coremin.h"
 #include "math/math.h"
-#include "world/world_block.h"
+#include "vertex.h"
 
 class World {
 
     public:
-        World(uint32 x, uint32 y, float stepSize, float minVal, float maxVal, float clipBelow, float clipAbove, uint32 startCol, uint32 startRow);
+        World(uint32 x, uint32 y, float stepSize, float minVal, float maxVal, float clipBelow, uint32 startRow);
         ~World();
-        void updateWorld(float y);
+        void createWorld();
+        void updateWorld(float dt);
+        void smoothWorld(int s);
+        void updateVertices();
+        uint32 getX(uint32 i);
+        uint32 getY(uint32 i);
         
-        uint32 X, Y;
+        uint32 X, Y, N;
         float stepSize;
-        float minVal, maxVal, clipBelow, clipAbove;
-        uint32 startCol, startRow;
-        LinkedList<WorldBlock> worldBlocks;
+        float minVal, maxVal, clipBelow;
+        uint32 startRow;
+        float clockTime;
 
+        float *data;
+        Vertex *vertices;
+        uint32 numTrianglesIndices, numLinesIndices;
+        uint32 *trianglesIndices, *linesIndices;
 };

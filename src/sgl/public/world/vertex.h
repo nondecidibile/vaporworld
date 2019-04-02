@@ -11,6 +11,4 @@ union Color {
 
 struct Vertex {
 	vec3 pos;
-	vec3 normal;
-	Color color;
 };
