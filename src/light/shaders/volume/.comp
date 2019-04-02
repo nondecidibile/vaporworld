@@ -58,6 +58,25 @@ float sampleVolume(vec3 traceStart, vec3 traceEnd, float samplingStep, int numSa
 	return val;
 }
 
+vec3 sampleVolumeRgb(vec3 traceStart, vec3 traceEnd, float samplingStep, int numSamples)
+{
+	const vec3 ray	= traceEnd - traceStart;
+	const vec3 dir	= normalize(ray);
+	const float len = length(ray);
+
+	vec3 val = vec3(0.f);
+	float s = 0.5f;
+
+	for (float t = 0.5f; numSamples > 0 && t < len; t += samplingStep, s *= 0.9f, --numSamples)
+	{
+		const vec3 p = traceStart + t * dir;
+		val += sampleNoise(p / 4.f) * normalize(abs(p)) * s;
+	}
+
+	val = min(val, vec3(1.f));
+	return val;
+}
+
 void main()
 {
 	mat4 invProjMatrix = inverse(viewMatrix);
@@ -68,6 +87,9 @@ void main()
 	vec3 traceEnd	= farPlane.xyz / farPlane.w;
 
 	/// Compute noise value
-	const float val = sampleVolume(traceStart, traceEnd, 0.12f, 32);
-	imageStore(colorBuffer, ivec2(gl_GlobalInvocationID.xy), vec4(normalize(abs(traceStart) + 1.f)/* vec3(0.3f, 0.6f, 0.933f) */ * val, 1.f));
+	//const float val = sampleVolume(traceStart, traceEnd, 0.12f, 32);
+	//imageStore(colorBuffer, ivec2(gl_GlobalInvocationID.xy), vec4(normalize(abs(traceStart) + 1.f)/* vec3(0.3f, 0.6f, 0.933f) */ * val, 1.f));
+
+	const vec3 val = sampleVolumeRgb(traceStart, traceEnd, 0.12f, 40);
+	imageStore(colorBuffer, ivec2(gl_GlobalInvocationID.xy), vec4(val, 1.f));
 }

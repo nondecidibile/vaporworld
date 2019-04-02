@@ -259,7 +259,7 @@ int32 main()
 
 	initOpenGL();
 
-	fboSize = point2(2560, 1440);
+	fboSize = point2(1920, 1080);
 
 	SDL_Window * window = SDL_CreateWindow("light", 0, 0, fboSize.x, fboSize.y, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
 	SDL_GLContext context = SDL_GL_CreateContext(window);
@@ -355,7 +355,7 @@ int32 main()
 	//////////////////////////////////////////////////
 	
 	projectionMatrix = mat4::glProjection(M_PI_2, 0.5f);
-	cameraLocation = vec3(0.f, 0.f, -5.f);
+	cameraLocation = vec3(0.f, 0.f, 0.f);
 	cameraVelocity = vec3::zero;
 	cameraRotation = quat(0.f, vec3::up);
 
