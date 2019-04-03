@@ -1,0 +1,116 @@
+//////////////////////////////////////////////////
+// This compute shader generates the density
+// for a 32^3 chunk and stores them in a
+// 33^3 3D texture
+//////////////////////////////////////////////////
+#version 430 core
+
+struct PerlinData
+{
+	/// Permutation table
+	int perms[256];
+
+	/// Gradients table
+	vec3 grads[256];
+};
+
+/// Perlin data buffer
+layout(binding = 0, std430) buffer PerlinBuffer
+{
+	PerlinData tables[];
+};
+
+/// Buffer used to store density values
+layout(binding = 0, r32f) writeonly uniform image3D densityBuffer;
+
+/// Vertices of a [<0,0,0>, <1,1,1>] cube
+const vec3 cubeCorners[] = {
+	vec3(0.f, 0.f, 0.f),
+	vec3(1.f, 0.f, 0.f),
+	vec3(0.f, 1.f, 0.f),
+	vec3(1.f, 1.f, 0.f),
+	vec3(0.f, 0.f, 1.f),
+	vec3(1.f, 0.f, 1.f),
+	vec3(0.f, 1.f, 1.f),
+	vec3(1.f, 1.f, 1.f),
+};
+
+/// Compute dot between position and gradient
+/// @{
+float grad(int k, vec3 p, ivec3 i, ivec3 period)
+{
+	const vec3 grad = tables[k].grads[tables[k].perms[(tables[k].perms[(tables[k].perms[i.x % period.x] + i.y) % period.y] + i.z) % period.z]];
+	return dot(p, grad);
+}
+float grad(vec3 p, ivec3 i, ivec3 period)
+{
+	return grad(0, p, i, period);
+}
+/// @}
+
+/// Sample perlin noise
+float perlinSample(vec3 p, ivec3 period)
+{
+	period = min(period, 256);
+
+	vec3 i	= floor(p);
+	vec3 t	= fract(p);
+	
+	// Soft curve
+	// @ref https://www.google.com/search?ei=tvSgXMDCGMvisAeL7bawAQ&q=x+*+x+*+%283+-+2+*+x%29&oq=x+*+x+*+%283+-+2+*+x%29&gs_l=psy-ab.3..0i13i30l2j0i22i30l8.4020.9555..9980...0.0..0.119.1704.14j5......0....1..gws-wiz.......0i71j35i39j0j0i67j0i22i10i30.e3qAa8TpAUc
+	vec3 w	= t * t * (3.f - 2.f * t);
+
+	return mix(
+		mix(
+			mix(
+				grad(t - cubeCorners[0], ivec3(i + cubeCorners[0]), period),
+				grad(t - cubeCorners[1], ivec3(i + cubeCorners[1]), period),
+				w.x
+			),
+			mix(
+				grad(t - cubeCorners[2], ivec3(i + cubeCorners[2]), period),
+				grad(t - cubeCorners[3], ivec3(i + cubeCorners[3]), period),
+				w.x
+			),
+			w.y
+		),
+		mix(
+			mix(
+				grad(t - cubeCorners[4], ivec3(i + cubeCorners[4]), period),
+				grad(t - cubeCorners[5], ivec3(i + cubeCorners[5]), period),
+				w.x
+			),
+			mix(
+				grad(t - cubeCorners[6], ivec3(i + cubeCorners[6]), period),
+				grad(t - cubeCorners[7], ivec3(i + cubeCorners[7]), period),
+				w.x
+			),
+			w.y
+		),
+		w.z
+	);
+}
+
+float monoOctaves(vec3 p, ivec3 period, uint numOctaves)
+{
+	float f = 1.f;
+	float s = 1.f;
+	float v = 0.f;
+
+	for (uint i = 0; i < numOctaves; ++i, f *= 2.f, s *= 0.5f)
+		v += abs(perlinSample(p * f, period)) * s;
+	
+	return v;
+}
+
+layout(local_size_x = 33, local_size_y = 1, local_size_z = 33) in;
+void main()
+{
+	// Write to density buffer
+	const vec3 p = vec3(gl_GlobalInvocationID) / 32.f;
+
+	float val = 0.f;
+	val += -p.y;
+	val += monoOctaves(p + monoOctaves(p, ivec3(256), 4), ivec3(256), 9) * 2.f;
+	imageStore(densityBuffer, ivec3(gl_GlobalInvocationID), vec4(val));
+}

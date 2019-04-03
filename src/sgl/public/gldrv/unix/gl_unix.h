@@ -55,6 +55,8 @@
 	expansion(PFNGLNAMEDBUFFERDATAPROC, glNamedBufferData) \
 	expansion(PFNGLBUFFERSUBDATAPROC, glBufferSubData) \
 	expansion(PFNGLNAMEDBUFFERSUBDATAPROC, glNamedBufferSubData) \
+	expansion(PFNGLMAPBUFFERRANGEPROC, glMapBufferRange) \
+	expansion(PFNGLUNMAPBUFFERPROC, glUnmapBuffer) \
 	expansion(PFNGLVERTEXATTRIBPOINTERPROC, glVertexAttribPointer) \
 	expansion(PFNGLVERTEXATTRIBIPOINTERPROC, glVertexAttribIPointer) \
 	expansion(PFNGLENABLEVERTEXATTRIBARRAYPROC, glEnableVertexAttribArray) \
