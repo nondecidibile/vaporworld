@@ -211,7 +211,7 @@ int main(){
 		glUniformMatrix4fv(modelMatrixLocT,1,GL_TRUE,transformation.array);
 		glDrawElements(GL_TRIANGLES,numTrianglesIndices,GL_UNSIGNED_INT,(void*)0);
 
-		/*
+		
 		glUseProgram(programL);
 		glUniform3fv(camLocUniformL, 1, cameraLocation.buffer);
 		glUniformMatrix4fv(viewMatrixLocL,1,GL_TRUE,(projectionMatrix * cameraMatrix).array);
@@ -226,7 +226,7 @@ int main(){
 		glUniformMatrix4fv(modelMatrixLocL,1,GL_TRUE,transformation.array);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER,numLinesIndices*sizeof(uint32),world.linesIndices,GL_STATIC_DRAW);
 		glDrawElements(GL_LINES,numLinesIndices,GL_UNSIGNED_INT,(void*)0);
-		*/
+		
 
 		/* * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
