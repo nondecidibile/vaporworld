@@ -70,6 +70,8 @@
 	expansion(PFNGLTEXIMAGE2DPROC, glTexImage2D) \
 	expansion(PFNGLTEXIMAGE3DPROC, glTexImage3D) \
 	expansion(PFNGLTEXPARAMETERIPROC, glTexParameteri) \
+	expansion(PFNGLPIXELSTOREIPROC, glPixelStorei) \
+	expansion(PFNGLPIXELSTOREFPROC, glPixelStoref) \
 	expansion(PFNGLGENERATEMIPMAPPROC, glGenerateMipMap) \
 	expansion(PFNGLDRAWARRAYSPROC, glDrawArrays) \
 	expansion(PFNGLDRAWELEMENTSPROC, glDrawElements) \

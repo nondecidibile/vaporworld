@@ -5,6 +5,9 @@
 //////////////////////////////////////////////////
 #version 430 core
 
+// Time variables
+uniform float currTime;
+
 struct PerlinData
 {
 	/// Permutation table
@@ -107,10 +110,10 @@ layout(local_size_x = 33, local_size_y = 1, local_size_z = 33) in;
 void main()
 {
 	// Write to density buffer
-	const vec3 p = vec3(gl_GlobalInvocationID) / 32.f;
+	const vec3 p = vec3(gl_GlobalInvocationID) / 64.f + vec3(currTime, 0.f, 0.f) / 4.f;
 
 	float val = 0.f;
 	val += -p.y;
-	val += monoOctaves(p + monoOctaves(p, ivec3(256), 4), ivec3(256), 9) * 2.f;
+	val += monoOctaves(p + monoOctaves(p, ivec3(256), 2), ivec3(256), 5) * 1.f;
 	imageStore(densityBuffer, ivec3(gl_GlobalInvocationID), vec4(val));
 }

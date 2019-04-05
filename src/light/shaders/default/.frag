@@ -10,5 +10,5 @@ in Vertex
 
 void main()
 {
-	outColor = vec4(1.f);
+	outColor = vec4(inVert.pos * inVert.pos.y, 1.f);
 }
