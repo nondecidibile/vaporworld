@@ -283,6 +283,10 @@ union
 
 uint32 zeroReg = 0;
 
+/// Generation settings
+const int32 blockSize = 1;
+const int32 maxBlockResolution = 32;
+
 /// Screen variables
 point2 fboSize;
 
@@ -776,7 +780,7 @@ int32 main()
 
 			/// Padding
 			uint32 pad1;
-		} vertices[32 * 32 * 32 * 5];
+		} vertices[maxBlockResolution * maxBlockResolution * maxBlockResolution * 5];
 	} chunk;
 
 #if SGL_BUILD_DEBUG
@@ -820,7 +824,7 @@ int32 main()
 	};
 	Map<vec3, Chunk, IVec3Compare> chunks;
 	LinkedList<Chunk*> activeChunks;
-	const uint32 numVbos = 256;
+	const uint32 numVbos = 320;
 	Queue<uint32> vbos;
 
 	{
@@ -842,9 +846,10 @@ int32 main()
 	glVertexAttribFormat(1, 3, GL_FLOAT, GL_FALSE, 16);
 
 	uint32 volumeData;
+	const ivec3 volumeRes(maxBlockResolution + 4);
 	glGenTextures(1, &volumeData);
 	glBindTexture(GL_TEXTURE_3D, volumeData);
-	glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, 36, 36, 36, 0, GL_RED, GL_FLOAT, nullptr);
+	glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, volumeRes.x, volumeRes.y, volumeRes.z, 0, GL_RED, GL_FLOAT, nullptr);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 #endif
@@ -921,7 +926,7 @@ int32 main()
 		//////////////////////////////////////////////////
 
 		const float32 cameraSpeed = 3.f;
-		const float32 cameraBrake = 2.f;
+		const float32 cameraBrake = 3.4f;
 		vec3 cameraAcceleration = cameraRotation * vec3(
 			keys[SDLK_d] - keys[SDLK_a],
 			keys[SDLK_SPACE] - keys[SDLK_LCTRL],
@@ -937,6 +942,8 @@ int32 main()
 
 		cameraTransform = mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation);
 		const mat4 viewMatrix = projectionMatrix * cameraTransform;
+		const vec3 cameraDir = cameraRotation.forward();
+		cameraDir.print();
 
 		//////////////////////////////////////////////////
 		// Draw
@@ -969,7 +976,7 @@ int32 main()
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	#else
-		const ivec3 radius(4, 2, 4);
+		const ivec3 radius(4);
 		uint32 numVertices = 0;
 
 		drawProg.bind();
@@ -989,75 +996,85 @@ int32 main()
 			{
 				for (int32 h = -radius.y; h <= radius.y; ++h)
 				{
-					bool bUpdate = false;
-					const ivec3 voxelIndex = ivec3(cameraLocation)/*  * ivec3(1, 0, 1) */ + ivec3(i, h, j);
-					auto voxelIt = chunks.find(voxelIndex);
+					const ivec3 voxelIndex = ivec3(cameraLocation / (float32)blockSize) * blockSize + ivec3(i, h, j) * blockSize;
+					const vec3 voxelOrigin = (const vec3&)voxelIndex;
+					const vec3 voxelOffset = vec3(i, h, j) + 0.5f;
 
-					// Draw what we have
-					if (voxelIt != chunks.end())
+					if (true/* voxelOffset.getSquaredSize() < 4.f || (voxelOffset.getNormal() & cameraDir) > 0.2f */)
 					{
-						Chunk & chunk = voxelIt->second;
+						bool bUpdate = false;
+						auto voxelIt = chunks.find(voxelIndex);
 
-						if (chunk.vbo > 0 && chunk.numVertices > 0)
+						// Draw what we have
+						if (voxelIt != chunks.end())
 						{
-							drawProg.bind();
-		
-							glBindVertexBuffer(0, chunk.vbo, 32, 32);
-							glVertexAttribBinding(0, 0);
-							glVertexAttribBinding(1, 0);
+							Chunk & chunk = voxelIt->second;
 
-							for (uint32 i = 0; i < 3; ++i)
+							if (chunk.vbo > 0 && chunk.numVertices > 0)
 							{
-								glActiveTexture(GL_TEXTURE0 + i);
-								glBindTexture(GL_TEXTURE_2D, terrainLayers[i]);
+								drawProg.bind();
+			
+								glBindVertexBuffer(0, chunk.vbo, 32, 32);
+								glVertexAttribBinding(0, 0);
+								glVertexAttribBinding(1, 0);
+
+								for (uint32 i = 0; i < 3; ++i)
+								{
+									glActiveTexture(GL_TEXTURE0 + i);
+									glBindTexture(GL_TEXTURE_2D, terrainLayers[i]);
+								}
+								
+								glDrawArrays(GL_TRIANGLES, 0, chunk.numVertices);
+
+								numVertices += chunk.numVertices;
+								chunk.bActive = true;
+								activeChunks.push(&chunk);
 							}
-							
-							glDrawArrays(GL_TRIANGLES, 0, chunk.numVertices);
-
-							numVertices += chunk.numVertices;
-							chunk.bActive = true;
-							activeChunks.push(&chunk);
+							else if (chunk.numVertices > 0)
+								bUpdate = true;
 						}
-						else if (chunk.numVertices > 0)
+						else
 							bUpdate = true;
-					}
-					else
-						bUpdate = true;
-					
-					if (bUpdate)
-					{
-						uint32 vbo;
-						if (vbos.pop(vbo))
+						
+						if (bUpdate)
 						{
-							// Get new or existing chunk
-							Chunk & chunk = chunks[voxelIndex];
-							
-							// Generate data, render on next frame
-							genProg.bind();
-							genProg.setUniform<const vec3&>("origin", (const vec3&)voxelIndex);
-							glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, perlinTables);
-							glBindImageTexture(0, volumeData, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
-							glDispatchCompute(1, 36, 1);
-							glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+							uint32 vbo;
+							if (vbos.pop(vbo))
+							{
+								// Get new or existing chunk
+								Chunk & chunk = chunks[voxelIndex];
+								
+								// Generate data, render on next frame
+								genProg.bind();
+								genProg.setUniform<float32>("blockSize", (float32)blockSize);
+								genProg.setUniform<int32>("blockResolution", maxBlockResolution);
+								genProg.setUniform<const vec3&>("origin", voxelOrigin);
+								glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, perlinTables);
+								glBindImageTexture(0, volumeData, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
+								glDispatchCompute(1, maxBlockResolution + 4, 1);
+								glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
 
-							// Generate geometry
-							marchProg.bind();
-							marchProg.setUniform<const vec3&>("origin", (const vec3&)voxelIndex);
-							glNamedBufferSubData(vbo, 0, sizeof(uint32), &zeroReg);
-							glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, vbo);
-							glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, marchingTable);
-							glActiveTexture(GL_TEXTURE0);
-							glBindTexture(GL_TEXTURE_3D, volumeData);
-							glDispatchCompute(1, 32, 1);
-							glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+								// Generate geometry
+								marchProg.bind();
+								marchProg.setUniform<float32>("blockSize", (float32)blockSize);
+								marchProg.setUniform<int32>("blockResolution", maxBlockResolution);
+								marchProg.setUniform<const vec3&>("origin", voxelOrigin);
+								glNamedBufferSubData(vbo, 0, sizeof(uint32), &zeroReg);
+								glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, vbo);
+								glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, marchingTable);
+								glActiveTexture(GL_TEXTURE0);
+								glBindTexture(GL_TEXTURE_3D, volumeData);
+								glDispatchCompute(1, maxBlockResolution, 1);
+								glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-							ChunkData * chunkData = reinterpret_cast<ChunkData*>(glMapNamedBufferRange(vbo, 0, 64, GL_MAP_READ_BIT));
-							chunk.numVertices = chunkData->index;
-							chunk.vbo = vbo;
-							chunk.bActive = chunk.numVertices > 0;
-							glUnmapNamedBuffer(vbo);
+								ChunkData * chunkData = reinterpret_cast<ChunkData*>(glMapNamedBufferRange(vbo, 0, 64, GL_MAP_READ_BIT));
+								chunk.numVertices = chunkData->index;
+								chunk.vbo = vbo;
+								chunk.bActive = chunk.numVertices > 0;
+								glUnmapNamedBuffer(vbo);
 
-							activeChunks.push(&chunk);
+								activeChunks.push(&chunk);
+							}
 						}
 					}
 				}
