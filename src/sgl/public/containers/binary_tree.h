@@ -4,6 +4,7 @@
 #include "hal/platform_memory.h"
 #include "hal/malloc_ansi.h"
 #include "templates/const_ref.h"
+#include "templates/is_trivially_copyable.h"
 #include "templates/functional.h"
 
 /**
@@ -21,13 +22,13 @@ struct GCC_ALIGN(32) BinaryNode
 	
 public:
 	/// Parent node
-	BinaryNode* parent;
+	BinaryNode * parent;
 
 	/// Left child node
-	BinaryNode* left;
+	BinaryNode * left;
 
 	/// Right child node
-	BinaryNode* right;
+	BinaryNode * right;
 
 	/// Node data
 	T data;
@@ -67,10 +68,58 @@ public:
 	}
 
 	/**
+	 * Get subtree max height starting from this node
+	 * 
+	 * TODO: not tail-recursive
+	 * 
+	 * @param [in] depth initial depth of this node
+	 * @return subtree height
+	 */
+	uint32 getMaxHeight(uint32 depth = 0)
+	{
+		uint32 leftDepth	= left != nullptr ? left->getHeight(depth + 1) : 0;
+		uint32 rightDepth	= right != nullptr ? right->getHeight(depth + 1) : 0;
+		return leftDepth > rightDepth ? leftDepth : rightDepth;
+	}
+
+	/**
+	 * Get subtree min height starting from this node
+	 * 
+	 * TODO: not tail-recursive
+	 * 
+	 * @param [in] depth initial depth of this node
+	 * @return subtree height
+	 */
+	uint32 getMinHeight(uint32 depth = 0)
+	{
+		uint32 leftDepth	= left != nullptr ? left->getHeight(depth + 1) : 0;
+		uint32 rightDepth	= right != nullptr ? right->getHeight(depth + 1) : 0;
+		return leftDepth < rightDepth ? leftDepth : rightDepth;
+	}
+
+	/// Get subtree leftmost node (contains min value)
+	FORCE_INLINE BinaryNode * getMin()
+	{
+		return left == nullptr ? this : left->getMin();
+	}
+
+	/// Get subtree rightmost node (contains max value)
+	FORCE_INLINE BinaryNode * getMax()
+	{
+		return right == nullptr ? this : right->getMax();
+	}
+
+	/// Get node successor (smallest value bigger than me)
+	FORCE_INLINE BinaryNode * getSuccessor()
+	{
+		return right == nullptr ? nullptr : right->getMin();
+	}
+
+	/**
 	 * Finds node that matches data
 	 * 
 	 * @param [in] search search data
-	 * @return node if found, null otherwise
+	 * @return node if found, nullptr otherwise
 	 * @{
 	 */
 	/// Search begins from this node
@@ -87,13 +136,10 @@ public:
 			return this;
 	}
 
-	/// Search begins from right/left node
-	FORCE_INLINE BinaryNode * findNext(typename ConstRef<T>::Type search)
+	/// Moves by only one node
+	FORCE_INLINE BinaryNode * next(typename ConstRef<T>::Type search)
 	{
-		if (CompareT().template operator()<decltype(search), decltype(data)>(search, data) < 0)
-			return left ? left->find(search) : nullptr;
-		else
-			return right ? right->find(search) : nullptr;
+		return CompareT().template operator()<decltype(search), decltype(data)>(search, data) < 0 ? left : right;
 	}
 	/// @}
 	
@@ -101,7 +147,7 @@ protected:
 	/// Set node as left child
 	FORCE_INLINE BinaryNode * setLeftChild(BinaryNode* node)
 	{
-		// @todo handle child replacement
+		// TODO: handle child replacement
 
 		if (node) node->parent = this;
 		return (left = node);
@@ -110,7 +156,7 @@ protected:
 	/// Set node as right child
 	FORCE_INLINE BinaryNode * setRightChild(BinaryNode * node)
 	{
-		// @todo handle child replacement
+		// TODO: handle child replacement
 
 		if (node) node->parent = this;
 		return (right = node);
@@ -152,7 +198,38 @@ public:
 	}
 	/// @}
 
-	/// Repair tree structure starting from this node
+	/// Delete this node from tree
+	/// @return node evicted from tree
+	BinaryNode * remove()
+	{
+		// Proceed with normal bt deleteion, then repair
+		// @ref http://www.mathcs.emory.edu/~cheung/Courses/171/Syllabus/9-BinTree/BST-delete2.html
+		
+		BinaryNode * succ = this;
+
+		// Get actual successor
+		if (left != nullptr && right != nullptr)
+			moveOrCopy(data, (succ = right->getMin())->data);
+		
+		// Remove left or right child of successor
+		BinaryNode * repl = succ->left != nullptr ? succ->left : succ->right;
+
+		// Replace successor
+		// If we had only one subtree then left may be non-null
+		if (succ->parent != nullptr)
+			(succ->parent->left == succ)
+				? succ->parent->setLeftChild(repl)
+				: succ->parent->setRightChild(repl);
+		
+		if (succ->isBlack())
+			// Repair rb structure
+			repairRemoved(repl, repl ? repl->parent : succ->parent);
+		
+		return succ;
+	}
+
+	/// Repair tree structure after insertion
+	/// starting from this node
 	/// @return self
 	BinaryNode * repair()
 	{
@@ -234,6 +311,130 @@ public:
 		return this;
 	}
 
+	/**
+	 * Repair tree structure after node deletion
+	 * 
+	 * Since NIL leaf are considered black nodes
+	 * we must run the repair algorithm even if
+	 * the node is NIL. For this reason we cannot
+	 * use a non-static function
+	 * 
+	 * @param [in] node node to repair
+	 * @param [in] parent node parent, necessary if node is NIL
+	 */
+	static void repairRemoved(BinaryNode * node, BinaryNode * parent)
+	{
+		/// Good ol' Wikipedia
+		/// @ref https://en.wikipedia.org/wiki/Red%E2%80%93black_tree#Removal
+
+		// Case 0: node is red
+		if (node && (node->isRed() || parent == nullptr))
+			node->color = NodeColor::BLACK;
+		
+		// Left child
+		else if (parent->left == node)
+		{
+			BinaryNode * sibling = parent->right;
+
+			// Case 1: sibling is red
+			if (sibling->isRed())
+			{
+				sibling->color	= NodeColor::BLACK;
+				parent->color	= NodeColor::RED;
+
+				// Rotate around parent and update sibling
+				parent->rotateLeft();
+				sibling = parent->right;
+			}
+
+			// Case 2: sibling is black with black children
+			if (
+				sibling->isBlack() &&
+				(sibling->left == nullptr || sibling->left->isBlack()) &&
+				(sibling->right == nullptr || sibling->right->isBlack())
+			)
+			{
+				sibling->color = NodeColor::RED;
+				// Recursive call
+				repairRemoved(parent, parent->parent);
+			}
+			else
+			{
+				// Case 3: sibling is black and inner child is red
+				if (sibling->left != nullptr && sibling->left->isRed())
+				{
+					sibling->color			= NodeColor::RED;
+					sibling->left->color	= NodeColor::BLACK;
+
+					// Rotate around sibling, so that red child is outer
+					// We also need to update the sibling
+					sibling->rotateRight();
+					sibling = sibling->parent;
+				}
+
+				// Case 4: sibling is black and outer child is red
+				{
+					sibling->color			= parent->color;
+					parent->color			= NodeColor::BLACK;
+					sibling->right->color	= NodeColor::BLACK;
+
+					// Rotate around parent
+					parent->rotateLeft();
+				}
+			}
+		}
+		// Right child
+		else
+		{
+			BinaryNode * sibling = parent->left;
+
+			if (sibling->isRed())
+			{
+				sibling->color	= NodeColor::BLACK;
+				parent->color	= NodeColor::RED;
+
+				// Rotate around parent and update sibling
+				parent->rotateRight();
+				sibling = parent->left;
+			}
+			
+			if (
+				sibling->isBlack() &&
+				(sibling->left == nullptr || sibling->left->isBlack()) &&
+				(sibling->right == nullptr || sibling->right->isBlack())
+			)
+			{
+				sibling->color = NodeColor::RED;
+				// Recursive call
+				repairRemoved(parent, parent->parent);
+			}
+			else
+			{
+				// Case 3: sibling is black and inner child is red
+				if (sibling->right != nullptr && sibling->right->isRed())
+				{
+					sibling->color			= NodeColor::RED;
+					sibling->right->color	= NodeColor::BLACK;
+
+					// Rotate around sibling, so that red child is outer
+					// We also need to update the sibling
+					sibling->rotateLeft();
+					sibling = sibling->parent;
+				}
+
+				// Case 4: sibling is black and outer child is red
+				{
+					sibling->color			= parent->color;
+					parent->color			= NodeColor::BLACK;
+					sibling->left->color	= NodeColor::BLACK;
+
+					// Rotate around parent
+					parent->rotateRight();
+				}
+			}
+		}
+	}
+
 protected:
 	/// Rotate left with this node as pivot
 	FORCE_INLINE void rotateLeft()
@@ -272,6 +473,21 @@ protected:
 		// Set me as right child
 		prevLeft->setRightChild(this);
 	}
+
+#if SGL_BUILD_DEBUG
+public:
+	/// Print node and descendants
+	void print(FILE * out = stdout, int32 depth = 0)
+	{
+		if (depth == 0)
+			fprintf(out, "%c\n", isBlack() ? 'B' : 'R');
+		else
+			fprintf(out, "%*c%c\n", depth, ' ', isBlack() ? 'B' : 'R');
+		
+		if (left)	left->print(out, depth + 1);
+		if (right)	right->print(out, depth + 1);
+	}
+#endif
 };
 
 /// Node reference type
@@ -353,6 +569,20 @@ public:
 		FORCE_INLINE U & operator* () const { return node->data; };
 		FORCE_INLINE U * operator->() const { return &(node->data); };
 		/// @}
+
+		/// Remove node and move to next
+		FORCE_INLINE NodeIterator<U> & remove()
+		{
+			if (LIKELY(node != nullptr))
+			{
+				// Advance iterator
+				auto removed = node;
+				operator++();
+
+				// Remove node
+				removed->remove();
+			}
+		}
 	};
 
 	/// Define iterator types
@@ -381,8 +611,6 @@ public:
 		// Create own allocator
 		if (bHasOwnAllocator)
 			allocator = new AllocT;
-		/* else
-			printf("%p\n", allocator); */
 	}
 
 protected:
@@ -522,7 +750,10 @@ public:
 
 public:
 	/// Get number of nodes
+	/// @{
 	FORCE_INLINE uint64 getSize() const { return numNodes; }
+	FORCE_INLINE uint64 getCount() const { return numNodes; }
+	/// @}
 
 	/**
 	 * Find node matching search
@@ -558,6 +789,7 @@ public:
 		{
 			root = createNode(data);
 			root->color = Node::NodeColor::BLACK;
+			numNodes = 1;
 
 			return root->data;
 		}
@@ -590,11 +822,79 @@ public:
 		{
 			root = createNode(data);
 			root->color = Node::NodeColor::BLACK;
-
 			numNodes = 1;
+
 			return root->data;
 		}
 	}
+
+	/**
+	 * Remove node with key search
+	 * 
+	 * * The iterator version is to preferred
+	 * 
+	 * @param [in] search key search
+	 * @param [in] it iterator
+	 * @return removed node
+	 * @{
+	 */
+	void remove(typename ConstRef<T>::Type search)
+	{
+		if (LIKELY(root))
+		{
+			// Find and remove
+			NodeRef node = root->find(search);
+			if (node)
+			{
+				NodeRef evicted = node->remove();
+				--numNodes;
+
+				/// Update root
+				if (evicted == root)
+					root = root->right;
+				else
+					root = root->getRoot();
+				
+				// Dealloc evicted node
+				allocator->free(evicted);
+			}
+		}
+	}
+	void remove(ConstIterator & it)
+	{
+		if (it.node)
+		{
+			NodeRef evicted = it.node->remove();
+			--numNodes;
+
+			// Update root
+			if (evicted == root)
+				root = root->right;
+			else
+				root = root->getRoot();
+
+			// Dealloc evicted node
+			allocator->free(evicted);
+		}
+	}
+	void remove(Iterator & it)
+	{
+		if (it.node)
+		{
+			NodeRef evicted = it.node->remove();
+			--numNodes;
+
+			// Update root
+			if (evicted == root)
+				root = root->right;
+			else
+				root = root->getRoot();
+
+			// Dealloc evicted node
+			allocator->free(evicted);
+		}
+	}
+	/// @}
 
 	/// Recursively removes all nodes of the tree
 	/// @{

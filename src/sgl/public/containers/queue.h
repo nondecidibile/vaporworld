@@ -2,7 +2,6 @@
 
 #include "core_types.h"
 #include "hal/platform_memory.h"
-#include "hal/malloc_ansi.h"
 #include "templates/const_ref.h"
 #include "templates/is_trivially_copyable.h"
 
@@ -13,14 +12,14 @@
  * singly-linked list
  */
 template <typename T, typename AllocT = MallocAnsi>
-class GCC_ALIGN(32) Queue
+class Queue
 {
 	// Sometimes C++ doesn't really make sense ...
 	template<typename, typename> friend class Queue;
 
 protected:
 	/// A client node
-	struct GCC_ALIGN(32) Client
+	struct GCC_ALIGN(16) Client
 	{
 		/// Next client in queue
 		Client * next;
@@ -38,8 +37,10 @@ protected:
 
 protected:
 	/// Allocator in use
+	/// @{
 	AllocT * allocator;
 	bool bHasOwnAllocator;
+	/// @}
 
 	/// First client
 	ClientRef first;
@@ -54,7 +55,7 @@ public:
 	/// Default constructor
 	FORCE_INLINE Queue(AllocT * _allocator = reinterpret_cast<AllocT*>(gMalloc)) :
 		allocator(_allocator),
-		bHasOwnAllocator(!_allocator),
+		bHasOwnAllocator(_allocator == nullptr),
 		first(nullptr),
 		last(nullptr),
 		numClients(0)
@@ -73,7 +74,7 @@ protected:
 
 public:
 	/// Copy constructor
-	FORCE_INLINE Queue(const Queue<T, AllocT> & other) : Queue(nullptr)
+	FORCE_INLINE Queue(const Queue & other) : Queue(nullptr)
 	{
 		if (other.first)
 		{
@@ -116,7 +117,7 @@ public:
 	}
 
 	/// Move constructor
-	FORCE_INLINE Queue(Queue<T, AllocT> && other) :
+	FORCE_INLINE Queue(Queue && other) :
 		allocator(other.allocator),
 		bHasOwnAllocator(other.bHasOwnAllocator),
 		first(other.first),
@@ -128,7 +129,7 @@ public:
 	}
 
 	/// Copy assignment
-	FORCE_INLINE Queue<T, AllocT> & operator=(const Queue<T, AllocT> & other)
+	FORCE_INLINE Queue & operator=(const Queue & other)
 	{
 		// Empty self first
 		empty();
@@ -156,7 +157,7 @@ public:
 
 	/// Copy assignment with different allocator type
 	template<typename AllocU>
-	FORCE_INLINE Queue<T, AllocT> & operator=(const Queue<T, AllocU> & other)
+	FORCE_INLINE Queue & operator=(const Queue<T, AllocU> & other)
 	{
 		// Empty self first
 		empty();
@@ -183,7 +184,7 @@ public:
 	}
 
 	/// Move assignment
-	FORCE_INLINE Queue<T, AllocT> & operator=(Queue<T, AllocT> && other)
+	FORCE_INLINE Queue & operator=(Queue && other)
 	{
 		// empty self first
 		empty();
@@ -210,7 +211,16 @@ public:
 	}
 	
 	/// Returns number of clients in queue
-	FORCE_INLINE uint64 getLength() const { return numClients; }
+	/// @{
+	FORCE_INLINE uint64 getLength() const
+	{
+		return numClients;
+	}
+	FORCE_INLINE uint64 getCount() const
+	{
+		return numClients;
+	}
+	/// @}
 
 	/**
 	 * Insert a new client in queue
@@ -231,6 +241,27 @@ public:
 		return last->data;
 	}
 
+protected:
+	/**
+	 * Remove and deallocate first client in queue
+	 * 
+	 * ! Doesn't check for empty queue
+	 * @return next client
+	 */
+	Client * removeFirst()
+	{
+		ClientRef next = first->next;
+		allocator->free(first);
+		--numClients;
+
+		// Link next
+		first = next;
+		if (first == nullptr) last = first;
+
+		return first;
+	}
+
+public:
 	/**
 	 * Pop first client in queue
 	 * 
@@ -240,18 +271,9 @@ public:
 	 */
 	FORCE_INLINE bool pop()
 	{
-		if (first)
+		if (LIKELY(first))
 		{
-			// Dealloc node
-			ClientRef next = first->next;
-			allocator->free(first);
-
-			// Link next
-			if (next)
-				first = next;
-			else
-				first = last = nullptr;
-
+			removeFirst();
 			return true;
 		}
 
@@ -259,7 +281,7 @@ public:
 	}
 	FORCE_INLINE bool pop(T & data)
 	{
-		if (first)
+		if (LIKELY(first))
 		{
 			// Get data out
 			moveOrCopy(data, first->data);
@@ -271,7 +293,6 @@ public:
 	/// @}
 
 	/// Empty the queue
-	/// @{
 	FORCE_INLINE void empty()
 	{
 		ClientRef it; while ((it = first))
@@ -286,7 +307,5 @@ public:
 		// Make sure last is null as well
 		first = last = nullptr;
 	}
-	FORCE_INLINE void flush() { empty(); }
-	/// @}
 };
 

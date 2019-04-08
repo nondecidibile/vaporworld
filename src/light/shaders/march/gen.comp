@@ -3,7 +3,7 @@
 // for a 32^3 chunk and stores them in a
 // 33^3 3D texture
 //////////////////////////////////////////////////
-#version 430 core
+#version 450 core
 
 // Time variables
 uniform float currTime;
@@ -24,7 +24,10 @@ layout(binding = 0, std430) buffer PerlinBuffer
 };
 
 /// Buffer used to store density values
-layout(binding = 0, r32f) writeonly uniform image3D densityBuffer;
+layout(binding = 0, r32f) writeonly uniform image3D densityMap;
+
+/// Cube origin
+uniform vec3 origin;
 
 /// Vertices of a [<0,0,0>, <1,1,1>] cube
 const vec3 cubeCorners[] = {
@@ -94,26 +97,41 @@ float perlinSample(vec3 p, ivec3 period)
 	);
 }
 
-float monoOctaves(vec3 p, ivec3 period, uint numOctaves)
+float octaves(vec3 p, ivec3 period, uint numOctaves)
 {
-	float f = 1.f;
+	float f = 0.5f;
 	float s = 1.f;
 	float v = 0.f;
 
 	for (uint i = 0; i < numOctaves; ++i, f *= 2.f, s *= 0.5f)
-		v += abs(perlinSample(p * f, period)) * s;
+		v += perlinSample(p * f, period) * s;
 	
 	return v;
 }
 
-layout(local_size_x = 33, local_size_y = 1, local_size_z = 33) in;
+float monoOctaves(vec3 p, ivec3 period, uint numOctaves)
+{
+	float f = 0.05f;
+	float s = 1.f;
+	float v = 0.f;
+
+	for (uint i = 0; i < numOctaves; ++i, f *= 2.f, s *= 0.5f)
+		v += max(perlinSample(p * f, period), 0.f) * s;
+	
+	return v;
+}
+
+layout(local_size_x = 36, local_size_y = 1, local_size_z = 36) in;
 void main()
 {
 	// Write to density buffer
-	const vec3 p = vec3(gl_GlobalInvocationID) / 64.f + vec3(currTime, 0.f, 0.f) / 4.f;
+	const float blockSize = 32.f;
+	const ivec3 voxelIndex = ivec3(gl_GlobalInvocationID);
+	const vec3 p = origin + vec3(voxelIndex - 2) / blockSize;
 
-	float val = 0.f;
-	val += -p.y;
-	val += monoOctaves(p + monoOctaves(p, ivec3(256), 2), ivec3(256), 5) * 1.f;
-	imageStore(densityBuffer, ivec3(gl_GlobalInvocationID), vec4(val));
+	float rad = 8.f;
+	//float val = rad - length(p - vec3(0.f, -rad, 0.f));
+	float val = -p.y;
+	val += octaves(p + octaves(p, ivec3(256), 2) * 1.5f, ivec3(256), 6) * 2.f;
+	imageStore(densityMap, voxelIndex, vec4(val));
 }

@@ -19,10 +19,10 @@ class Map
 {
 public:
 	/// Pair type
-	using PairT = Pair<KeyT, ValT>;
+	using PairT = Pair<KeyT, ValT, CompareT>;
 
 	/// Tree type
-	using TreeT = BinaryTree<PairT, CompareT, AllocT>;
+	using TreeT = BinaryTree<PairT, Compare, AllocT>;
 
 	/// Node type
 	using Node		= typename TreeT::Node;
@@ -40,6 +40,12 @@ public:
 	/// Default constructor
 	FORCE_INLINE Map(AllocT * allocator = reinterpret_cast<AllocT*>(gMalloc)) :
 		tree(allocator) {}
+	
+	/// Get number of nodes in maps
+	FORCE_INLINE uint32 getCount() const
+	{
+		return tree.numNodes;
+	}
 
 	/**
 	 * Find value using key
@@ -100,6 +106,36 @@ public:
 	FORCE_INLINE PairT & insert(typename ConstRef<KeyT>::Type key, typename ConstRef<ValT>::Type val)
 	{
 		return insert(PairT(key, val));
+	}
+	/// @}
+
+	/**
+	 * Remove an element from the map
+	 * 
+	 * @param [in] key search key
+	 * @param [in] it iterator
+	 * @{
+	 */
+	FORCE_INLINE void remove(typename ConstRef<KeyT>::Type key)
+	{
+		tree.remove(tree.find(PairT(key)));
+	}
+	FORCE_INLINE void remove(Iterator it)
+	{
+		tree.remove(it);
+	}
+	FORCE_INLINE void remove(ConstIterator it)
+	{
+		tree.remove(it);
+	}
+
+	FORCE_INLINE void erase(Iterator it)
+	{
+		remove(it);
+	}
+	FORCE_INLINE void erase(ConstIterator it)
+	{
+		remove(it);
 	}
 	/// @}
 

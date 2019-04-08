@@ -49,17 +49,27 @@
 	expansion(PFNGLBINDVERTEXARRAYPROC, glBindVertexArray) \
 	expansion(PFNGLGENBUFFERSPROC, glGenBuffers) \
 	expansion(PFNGLDELETEBUFFERSPROC, glDeleteBuffers) \
+	expansion(PFNGLISBUFFERPROC, glIsBuffer) \
 	expansion(PFNGLBINDBUFFERPROC, glBindBuffer) \
 	expansion(PFNGLBINDBUFFERBASEPROC, glBindBufferBase) \
+	expansion(PFNGLBINDVERTEXBUFFERPROC, glBindVertexBuffer) \
 	expansion(PFNGLBUFFERDATAPROC, glBufferData) \
 	expansion(PFNGLNAMEDBUFFERDATAPROC, glNamedBufferData) \
 	expansion(PFNGLBUFFERSUBDATAPROC, glBufferSubData) \
 	expansion(PFNGLNAMEDBUFFERSUBDATAPROC, glNamedBufferSubData) \
+	expansion(PFNGLBUFFERSTORAGEPROC, glBufferStorage) \
+	expansion(PFNGLNAMEDBUFFERSTORAGEPROC, glNamedBufferStorage) \
+	expansion(PFNGLGETBUFFERSUBDATAPROC, glGetBufferSubData) \
+	expansion(PFNGLGETNAMEDBUFFERSUBDATAPROC, glGetNamedBufferSubData) \
 	expansion(PFNGLMAPBUFFERRANGEPROC, glMapBufferRange) \
+	expansion(PFNGLMAPNAMEDBUFFERRANGEPROC, glMapNamedBufferRange) \
 	expansion(PFNGLUNMAPBUFFERPROC, glUnmapBuffer) \
+	expansion(PFNGLUNMAPNAMEDBUFFERPROC, glUnmapNamedBuffer) \
 	expansion(PFNGLVERTEXATTRIBPOINTERPROC, glVertexAttribPointer) \
 	expansion(PFNGLVERTEXATTRIBIPOINTERPROC, glVertexAttribIPointer) \
 	expansion(PFNGLENABLEVERTEXATTRIBARRAYPROC, glEnableVertexAttribArray) \
+	expansion(PFNGLVERTEXATTRIBFORMATPROC, glVertexAttribFormat) \
+	expansion(PFNGLVERTEXATTRIBBINDINGPROC, glVertexAttribBinding) \
 	expansion(PFNGLGENTEXTURESPROC, glGenTextures) \
 	expansion(PFNGLDELETETEXTURESPROC, glDeleteTextures) \
 	expansion(PFNGLACTIVETEXTUREPROC, glActiveTexture) \
@@ -75,8 +85,11 @@
 	expansion(PFNGLGENERATEMIPMAPPROC, glGenerateMipMap) \
 	expansion(PFNGLDRAWARRAYSPROC, glDrawArrays) \
 	expansion(PFNGLDRAWELEMENTSPROC, glDrawElements) \
+	expansion(PFNGLPOLYGONMODEPROC, glPolygonMode) \
+	expansion(PFNGLPOINTSIZEPROC, glPointSize) \
 	expansion(PFNGLDISPATCHCOMPUTEPROC, glDispatchCompute) \
 	expansion(PFNGLMEMORYBARRIERPROC, glMemoryBarrier) \
+	expansion(PFNGLFENCESYNCPROC, glFenceSync) \
 	expansion(PFNGLREADBUFFERPROC, glReadBuffer) \
 	expansion(PFNGLDRAWBUFFERPROC, glDrawBuffer) \
 	expansion(PFNGLDRAWBUFFERSPROC, glDrawBuffers) \

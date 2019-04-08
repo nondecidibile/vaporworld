@@ -33,6 +33,12 @@ target_link_libraries(${PROJECT_NAME}
 	sgl
 )
 
+target_include_directories(${PROJECT_NAME}
+
+	PUBLIC
+		public
+)
+
 # Custom command
 add_custom_target(run
 

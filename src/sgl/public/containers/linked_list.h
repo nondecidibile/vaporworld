@@ -96,10 +96,6 @@ class GCC_ALIGN(32) LinkedList
 	friend class LinkedList;
 
 public:
-	/// Link type
-	using LinkT		= Link<T>;
-	using LinkRefT	= LinkRef<T>;
-
 	/// LinkedList iterator
 	template<typename U>
 	class LinkedListIterator
@@ -108,7 +104,7 @@ public:
 
 	private:
 		/// Current link
-		LinkRef<T> curr;
+		LinkRef<U> curr;
 
 	public:
 		/// Iterator methods
@@ -130,20 +126,22 @@ public:
 		/// @}
 
 		/// Returns the link itself, not the underlying data
-		FORCE_INLINE LinkRef<T> getLink() { return curr; }
+		FORCE_INLINE LinkRef<U> getLink() { return curr; }
 
 	private:
 		/// Default-constructor, private usage
-		LinkedListIterator(LinkRef<T> _link = nullptr) : curr(_link) {}
+		LinkedListIterator(LinkRef<U> _link = nullptr) : curr(_link) {}
 	};
 
 	using Iterator		= LinkedListIterator<T>;
-	using ConstIterator	= LinkedListIterator<T>;
+	using ConstIterator	= LinkedListIterator<const T>;
 
 protected:
-	/// @biref Allocator used to allocate new links
+	/// Allocator in use
+	/// @{
 	AllocT * allocator;
 	bool bHasOwnAllocator;
+	/// @}
 
 	/// Head of the list
 	LinkRef<T> head;
@@ -177,7 +175,7 @@ protected:
 
 public:
 	/// Copy constructor
-	FORCE_INLINE LinkedList(const LinkedList<T, AllocT> & other) : LinkedList(nullptr)
+	FORCE_INLINE LinkedList(const LinkedList & other) : LinkedList(nullptr)
 	{
 		if (other.head)
 		{
@@ -220,7 +218,7 @@ public:
 	}
 
 	/// Move constructor
-	FORCE_INLINE LinkedList(LinkedList<T, AllocT> && other) :
+	FORCE_INLINE LinkedList(LinkedList && other) :
 		allocator(other.allocator),
 		bHasOwnAllocator(other.bHasOwnAllocator),
 		head(other.head),
@@ -232,7 +230,7 @@ public:
 	}
 
 	/// Copy assignment
-	FORCE_INLINE LinkedList<T, AllocT> & operator=(const LinkedList<T, AllocT> & other)
+	FORCE_INLINE LinkedList & operator=(const LinkedList & other)
 	{
 		// empty self first
 		empty();
@@ -260,7 +258,7 @@ public:
 
 	/// Copy assignment with different allocator type
 	template<typename AllocU>
-	FORCE_INLINE LinkedList<T, AllocT> & operator=(const LinkedList<T, AllocU> & other)
+	FORCE_INLINE LinkedList & operator=(const LinkedList<T, AllocU> & other)
 	{
 		// empty self first
 		empty();
@@ -287,7 +285,7 @@ public:
 	}
 
 	/// Move assignment
-	FORCE_INLINE LinkedList<T, AllocT> & operator=(LinkedList<T, AllocT> && other)
+	FORCE_INLINE LinkedList & operator=(LinkedList && other)
 	{
 		// empty self first
 		empty();
@@ -319,7 +317,7 @@ public:
 	FORCE_INLINE uint64 getLength() const	{ return count; }
 	/// @}
 
-	/// Random access operator, O(i) time
+	/// Random access operator, O(n) time complexity
 	T & operator[](uint64 i)
 	{		
 		if (i < count / 2)
@@ -355,7 +353,7 @@ public:
 	 * @{
 	 */
 	/// @return self
-	FORCE_INLINE LinkedList<T, AllocT> & operator+=(typename ConstRef<T>::Type elem)
+	FORCE_INLINE LinkedList & operator+=(typename ConstRef<T>::Type elem)
 	{
 		// Push to end, replaces tail
 		if (LIKELY(tail))
@@ -477,7 +475,6 @@ public:
 	/// @}
 
 	/// Empty the list
-	/// @{
 	FORCE_INLINE void empty()
 	{
 		LinkRef<T> it; while ((it = head))
@@ -492,8 +489,7 @@ public:
 
 		// Make sure tail is null as well
 		head = tail = nullptr;
+		count = 0;
 	}
-	FORCE_INLINE void flush() { empty(); }
-	/// @}
 };
 

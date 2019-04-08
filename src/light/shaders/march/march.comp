@@ -29,8 +29,12 @@ layout(binding = 1, std430) buffer MarchingTable
 };
 //layout(binding = 0) uniform isampler2D edgesTable;
 
-/// Buffer used to read density values
-layout(binding = 0, r32f) readonly uniform image3D densityBuffer;
+/// Buffers used to read density values
+//layout(binding = 0, r32f) readonly uniform image3D densityBuffer;
+layout(binding = 0) uniform sampler3D densityMap;
+
+/// Cube origin
+uniform vec3 origin;
 
 /// Vertices of a [<0,0,0>, <1,1,1>] cube
 const ivec3 cubeCorners[] = {
@@ -47,54 +51,68 @@ const ivec3 cubeCorners[] = {
 /// Generate geometry for voxel
 void march(ivec3 voxelIndex)
 {
+	// Voxel offset position, [0.f - 31.f]
+	const vec3 voxelOffset = vec3(voxelIndex);
+
 	// Read density values
 	float densities[8];
 	for (uint i = 0; i < 8; ++i)
-		densities[i] = imageLoad(densityBuffer, voxelIndex + cubeCorners[i]).r;
+		densities[i] = texelFetch(densityMap, (voxelIndex + 2) + cubeCorners[i], 0).r;
 
 	// Compute marching case
 	uint marchingCase
-		= (uint(densities[0] < 0.f) << 0)
-		| (uint(densities[1] < 0.f) << 1)
-		| (uint(densities[2] < 0.f) << 2)
-		| (uint(densities[3] < 0.f) << 3)
-		| (uint(densities[4] < 0.f) << 4)
-		| (uint(densities[5] < 0.f) << 5)
-		| (uint(densities[6] < 0.f) << 6)
-		| (uint(densities[7] < 0.f) << 7);
+		= (uint(densities[0] > 0.f) << 0)
+		| (uint(densities[1] > 0.f) << 1)
+		| (uint(densities[2] > 0.f) << 2)
+		| (uint(densities[3] > 0.f) << 3)
+		| (uint(densities[4] > 0.f) << 4)
+		| (uint(densities[5] > 0.f) << 5)
+		| (uint(densities[6] > 0.f) << 6)
+		| (uint(densities[7] > 0.f) << 7);
 
 	// No geometry here
 	if (marchingCase == 0x0 || marchingCase == 0xff) return;
 
 	// Pre-compute edge vertices
 	vec3 vertPerEdge[12] = {
-		vec3(voxelIndex) + mix(cubeCorners[0], cubeCorners[1], /* 0.5f */(-densities[0]) / (densities[1] - densities[0])),
-		vec3(voxelIndex) + mix(cubeCorners[1], cubeCorners[2], /* 0.5f */(-densities[1]) / (densities[2] - densities[1])),
-		vec3(voxelIndex) + mix(cubeCorners[2], cubeCorners[3], /* 0.5f */(-densities[2]) / (densities[3] - densities[2])),
-		vec3(voxelIndex) + mix(cubeCorners[3], cubeCorners[0], /* 0.5f */(-densities[3]) / (densities[0] - densities[3])),
-		
-		vec3(voxelIndex) + mix(cubeCorners[4], cubeCorners[5], /* 0.5f */(-densities[4]) / (densities[5] - densities[4])),
-		vec3(voxelIndex) + mix(cubeCorners[5], cubeCorners[6], /* 0.5f */(-densities[5]) / (densities[6] - densities[5])),
-		vec3(voxelIndex) + mix(cubeCorners[6], cubeCorners[7], /* 0.5f */(-densities[6]) / (densities[7] - densities[6])),
-		vec3(voxelIndex) + mix(cubeCorners[7], cubeCorners[4], /* 0.5f */(-densities[7]) / (densities[4] - densities[7])),
+		voxelOffset + mix(cubeCorners[0], cubeCorners[1], (-densities[0]) / (densities[1] - densities[0])),
+		voxelOffset + mix(cubeCorners[1], cubeCorners[2], (-densities[1]) / (densities[2] - densities[1])),
+		voxelOffset + mix(cubeCorners[2], cubeCorners[3], (-densities[2]) / (densities[3] - densities[2])),
+		voxelOffset + mix(cubeCorners[3], cubeCorners[0], (-densities[3]) / (densities[0] - densities[3])),
+	
+		voxelOffset + mix(cubeCorners[4], cubeCorners[5], (-densities[4]) / (densities[5] - densities[4])),
+		voxelOffset + mix(cubeCorners[5], cubeCorners[6], (-densities[5]) / (densities[6] - densities[5])),
+		voxelOffset + mix(cubeCorners[6], cubeCorners[7], (-densities[6]) / (densities[7] - densities[6])),
+		voxelOffset + mix(cubeCorners[7], cubeCorners[4], (-densities[7]) / (densities[4] - densities[7])),
 
-		vec3(voxelIndex) + mix(cubeCorners[0], cubeCorners[4], /* 0.5f */(-densities[0]) / (densities[4] - densities[0])),
-		vec3(voxelIndex) + mix(cubeCorners[1], cubeCorners[5], /* 0.5f */(-densities[1]) / (densities[5] - densities[1])),
-		vec3(voxelIndex) + mix(cubeCorners[2], cubeCorners[6], /* 0.5f */(-densities[2]) / (densities[6] - densities[2])),
-		vec3(voxelIndex) + mix(cubeCorners[3], cubeCorners[7], /* 0.5f */(-densities[3]) / (densities[7] - densities[3])),
+		voxelOffset + mix(cubeCorners[0], cubeCorners[4], (-densities[0]) / (densities[4] - densities[0])),
+		voxelOffset + mix(cubeCorners[1], cubeCorners[5], (-densities[1]) / (densities[5] - densities[1])),
+		voxelOffset + mix(cubeCorners[2], cubeCorners[6], (-densities[2]) / (densities[6] - densities[2])),
+		voxelOffset + mix(cubeCorners[3], cubeCorners[7], (-densities[3]) / (densities[7] - densities[3])),
 	};
 
 	// Connect edges, generate triangles
-	for (int i = 0; i < 15; i += 3)
+	for (uint i = 0; i < 15; i += 3)
 	{
 		const uint j = marchingCase * 15 + i;
 		const ivec3 edges = ivec3(edgesTable[j], edgesTable[j + 1], edgesTable[j + 2]);
 		if (edges[0] < 0) return;
 
 		const uint vertexIndex = atomicAdd(chunk.index, 3);
-		chunk.vertices[vertexIndex + 0].pos = vertPerEdge[edges[0]] / 32.f;
-		chunk.vertices[vertexIndex + 1].pos = vertPerEdge[edges[1]] / 32.f;
-		chunk.vertices[vertexIndex + 2].pos = vertPerEdge[edges[2]] / 32.f;
+		for (uint j = 0; j < 3; ++j)
+		{
+			const float d = 1.f / 36.f;
+			const vec3 vert = vertPerEdge[edges[j]];
+			const vec3 pos = vert / 32.f;
+			const vec3 uvw = (vert + 2.f) / 36.f;
+			const vec3 norm = normalize(vec3(
+				texture(densityMap, uvw + vec3(  d, 0.f, 0.f)).r - texture(densityMap, uvw - vec3(  d, 0.f, 0.f)).r,
+				texture(densityMap, uvw + vec3(0.f,   d, 0.f)).r - texture(densityMap, uvw - vec3(0.f,   d, 0.f)).r,
+				texture(densityMap, uvw + vec3(0.f, 0.f,   d)).r - texture(densityMap, uvw - vec3(0.f, 0.f,   d)).r
+			));
+
+			chunk.vertices[vertexIndex + j] = Vertex(origin + pos, -norm);
+		}
 	};
 }
 

@@ -1,6 +1,7 @@
-#version 430 core
+#version 450 core
 
 layout(location = 0) in vec4 inPos;
+layout(location = 1) in vec3 inNorm;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
@@ -15,7 +16,7 @@ void main()
 {
 	vec4 wsPos = modelMatrix * inPos;
 	outVert.pos = vec3(wsPos);
-	outVert.norm = vec3(0.f, 1.f, 0.f);
+	outVert.norm = inNorm;
 
 	gl_Position = viewMatrix * wsPos;
 }

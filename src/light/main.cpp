@@ -2,6 +2,9 @@
 #include "math/math.h"
 #include "gldrv/gldrv.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 #include <SDL.h>
 
 #if SGL_BUILD_RELEASE
@@ -288,6 +291,8 @@ float32 dt;
 float32 currTime;
 uint64 currTick;
 uint64 prevTick;
+float32 currFps;
+vec2 fpsBounds;
 
 /// Camera variables
 vec3 cameraLocation;
@@ -487,41 +492,18 @@ FORCE_INLINE void ShaderProgram::setUniform<const mat4&>(const String & key, con
 	});
 }
 
-ShaderProgram initTerrainProg()
+class Chunk
 {
-	ShaderProgram prog;
+protected:
+	/// Density map
+	uint32 densityMap;
 
-	uint32 vShader = glCreateShader(GL_VERTEX_SHADER);
-	uint32 gShader = glCreateShader(GL_GEOMETRY_SHADER);
-	uint32 fShader = glCreateShader(GL_FRAGMENT_SHADER);
+	/// Vertex buffer
+	uint32 vertexBuffer;
 
-	{
-		FileReader source("/src/light/shaders/terrain/.vert");
-		const char * buffer = source.get<char>();
-		glShaderSource(vShader, 1, &buffer, nullptr);
-		glCompileShader(vShader);
-		prog.setShader(vShader);
-	}
-
-	{
-		FileReader source("/src/light/shaders/terrain/.geom");
-		const char * buffer = source.get<char>();
-		glShaderSource(gShader, 1, &buffer, nullptr);
-		glCompileShader(gShader);
-		prog.setShader(gShader);
-	}
-
-	{
-		FileReader source("/src/light/shaders/terrain/.frag");
-		const char * buffer = source.get<char>();
-		glShaderSource(fShader, 1, &buffer, nullptr);
-		glCompileShader(fShader);
-		prog.setShader(fShader);
-	}
-
-	prog.link();
-	return prog;
-}
+public:
+protected:
+};
 
 void setupPerlin()
 {
@@ -556,6 +538,12 @@ void setupPerlin()
 
 int32 main()
 {
+	/**
+	 * Some nice seed values:
+	 * 
+	 * -12359012
+	 */
+
 	Memory::createGMalloc();
 	srand(clock());
 
@@ -566,19 +554,21 @@ int32 main()
 
 	initOpenGL();
 
-	fboSize = point2(1920, 1080);
+	fboSize = point2(1280, 720);
 
 	SDL_Window * window = SDL_CreateWindow("light", 0, 0, fboSize.x, fboSize.y, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
 	SDL_GLContext context = SDL_GL_CreateContext(window);
-	SDL_GL_SetSwapInterval(0);
-	//SDL_SetRelativeMouseMode(SDL_TRUE);
+	SDL_GL_SetSwapInterval(1);
+	SDL_SetRelativeMouseMode(SDL_TRUE);
 
 	// Init time
 	dt = 0.f;
 	currTime = 0.f;
 	currTick = prevTick = SDL_GetPerformanceCounter();
+	fpsBounds = vec2(FLT_MAX, 0.f);
 
 	glEnable(GL_DEPTH_TEST);
+	glPointSize(2);
 
 	//////////////////////////////////////////////////
 	// Program setup
@@ -732,11 +722,25 @@ int32 main()
 	drawProg.bind();
 	if (drawProg.getStatus() == 0) printf("drawing program not linked correctly\n");
 
+	struct
+	{
+		int32 width, height, channels;
+		ubyte * data;
+	} img;
+
+	img.data = stbi_load("assets/grass_diffuse.jpg", &img.width, &img.width, &img.channels, 0);
+	uint32 tex;
+	glGenTextures(1, &tex);
+	glBindTexture(GL_TEXTURE_2D, tex);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, img.width, img.height, 0, GL_RGB, GL_UNSIGNED_BYTE, img.data);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
 	//////////////////////////////////////////////////
 	// Buffer setup
 	//////////////////////////////////////////////////
 
-	struct Chunk
+	struct ChunkData
 	{
 		/// Vertex index, zero indicates no geometry generated
 		uint32 index;
@@ -774,7 +778,7 @@ int32 main()
 		}; */
 #endif
 
-	uint32 vao, vbo;
+	/* uint32 vao, vbo;
 	glGenVertexArrays(1, &vao);
 	glGenBuffers(1, &vbo);
 
@@ -783,15 +787,57 @@ int32 main()
 	glBufferData(GL_ARRAY_BUFFER, sizeof(chunk), &chunk, GL_DYNAMIC_COPY);
 
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(chunk.vertices[0]), (void*)32);
-	//glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(chunk.vertices[0]), (void*)44);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(chunk.vertices[0]), (void*)48);
 	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1); */
+	uint32 vao;
+	glGenVertexArrays(1, &vao);
+	glBindVertexArray(vao);
+
+	struct IVec3Compare
+	{
+		FORCE_INLINE int32 operator()(const vec3 & a, const vec3 & b) const
+		{
+			const Compare compare;
+			return compare(a.x, b.x) * 4 + compare(a.y, b.y) * 2 + compare(a.z, b.z);
+		}
+	};
+
+	struct Chunk
+	{
+		bool bActive;
+		uint32 vbo;
+		uint32 numVertices;
+	};
+	Map<vec3, Chunk, IVec3Compare> chunks;
+	LinkedList<Chunk*> activeChunks;
+	const uint32 numVbos = 256;
+	Queue<uint32> vbos;
+
+	{
+		uint32 buffers[numVbos];
+		glGenBuffers(numVbos, buffers);
+
+		for (uint32 i = 0; i < numVbos; ++i)
+		{
+			glBindBuffer(GL_ARRAY_BUFFER, buffers[i]);
+			glBufferStorage(GL_ARRAY_BUFFER, sizeof(ChunkData), &chunk, GL_DYNAMIC_STORAGE_BIT | GL_MAP_READ_BIT);
+			vbos.push(buffers[i]);
+		}
+	}
+
+	/// Vertex attrib format
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+	glVertexAttribFormat(0, 3, GL_FLOAT, GL_FALSE, 0);
+	glVertexAttribFormat(1, 3, GL_FLOAT, GL_FALSE, 16);
 
 	uint32 volumeData;
 	glGenTextures(1, &volumeData);
 	glBindTexture(GL_TEXTURE_3D, volumeData);
-	glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, 33, 33, 33, 0, GL_RED, GL_FLOAT, nullptr);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, 36, 36, 36, 0, GL_RED, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 #endif
 
 	//////////////////////////////////////////////////
@@ -799,7 +845,7 @@ int32 main()
 	//////////////////////////////////////////////////
 	
 	projectionMatrix = mat4::glProjection(M_PI_2, 0.5f);
-	cameraLocation = vec3(0.f, 0.f, -5.f);
+	cameraLocation = vec3(0.f, 1.f, 0.f);
 	cameraVelocity = vec3::zero;
 	cameraRotation = quat(0.f, vec3::up);
 
@@ -813,8 +859,15 @@ int32 main()
 		// Update time variables
 		currTime += (dt = ((currTick = SDL_GetPerformanceCounter()) - prevTick) / (float32)SDL_GetPerformanceFrequency());
 		prevTick = currTick;
+		currFps = 1.f / dt;
 
-		printf("%f s -> %f fps\n", dt, 1.f / dt);
+		printf("%.4f s -> %f fps [%.4f : %.4f]\n", dt, currFps, fpsBounds[0], fpsBounds[1]);
+
+		if (currFps > 50.f)
+		{
+			fpsBounds[0] = Math::min(fpsBounds[0], currFps);
+			fpsBounds[1] = Math::max(fpsBounds[1], currFps);
+		}
 
 		SDL_Event e;
 		while (SDL_PollEvent(&e))
@@ -828,6 +881,13 @@ int32 main()
 				case SDL_KEYDOWN:
 					keys[e.key.keysym.sym] = 1.f;
 					bRunning &= e.key.keysym.sym != SDLK_ESCAPE;
+
+					if (e.key.keysym.sym == SDLK_1)
+						glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+					else if (e.key.keysym.sym == SDLK_2)
+						glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+					else if (e.key.keysym.sym == SDLK_3)
+						glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
 					break;
 				
 				case SDL_KEYUP:
@@ -856,9 +916,8 @@ int32 main()
 		cameraLocation += cameraVelocity * dt;
 
 		cameraRotation
-			= quat((keys[SDLK_RIGHT] - keys[SDLK_LEFT]/*  + axes["mouseX"] * 1.5f */) * dt, cameraRotation.up())
-			* quat((keys[SDLK_LEFT] - keys[SDLK_RIGHT]/*  + axes["mouseX"] * 0.5f */) * dt, cameraRotation.forward())
-			* quat((keys[SDLK_DOWN] - keys[SDLK_UP]/*  + axes["mouseY"] * 1.5f */) * dt, cameraRotation.right())
+			= quat((keys[SDLK_RIGHT] - keys[SDLK_LEFT] + axes["mouseX"] * 0.5f) * dt, vec3::up)
+			* quat((keys[SDLK_DOWN] - keys[SDLK_UP] + axes["mouseY"] * 0.5f) * dt, cameraRotation.right())
 			* cameraRotation;
 
 		cameraTransform = mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation);
@@ -895,35 +954,106 @@ int32 main()
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	#else
-		/// Generate density data
-		genProg.bind();
-		genProg.setUniform<float32>("currTime", currTime);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, perlinTables);
-		glBindImageTexture(0, volumeData, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
-		glDispatchCompute(1, 33, 1);
-		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-
-		marchProg.bind();
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, vbo);
-		glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(uint32), &zeroReg);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, vbo);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, marchingTable);
-		/* glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, marchingTable); */
-		glBindImageTexture(0, volumeData, 0, GL_FALSE, 0, GL_READ_ONLY, GL_R32F);
-		glDispatchCompute(1, 32, 1);
-		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+		const ivec3 radius(3, 3, 3);
+		uint32 numVertices = 0;
 
 		drawProg.bind();
 		drawProg.setUniform<const mat4&>("modelMatrix", mat4::eye(1.f));
 		drawProg.setUniform<const mat4&>("viewMatrix", viewMatrix);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		drawProg.setUniform<const vec3&>("cameraLocation", cameraLocation);
 
-		Chunk * mappedMemory = (Chunk*)glMapBufferRange(GL_ARRAY_BUFFER, 0, sizeof(uint32) * 64, GL_MAP_READ_BIT);
-		//printf("%u\n", mappedMemory->index);
-		glUnmapBuffer(GL_ARRAY_BUFFER);
+		// Reset active state
+		for (auto chunkRef : activeChunks)
+			chunkRef->bActive = false;
+		
+		auto oldActiveChunks = activeChunks;
+		activeChunks.empty();
+		for (int32 i = -radius.x; i <= radius.x; ++i)
+		{
+			for (int32 j = -radius.z; j <= radius.z; ++j)
+			{
+				for (int32 h = -radius.y; h <= radius.y; ++h)
+				{
+					bool bUpdate = false;
+					const ivec3 voxelIndex = ivec3(cameraLocation)/*  * ivec3(1, 0, 1) */ + ivec3(i, h, j);
+					auto voxelIt = chunks.find(voxelIndex);
 
-		glDrawArrays(GL_TRIANGLES, 0, mappedMemory->index);
+					// Draw what we have
+					if (voxelIt != chunks.end())
+					{
+						Chunk & chunk = voxelIt->second;
+
+						if (chunk.vbo > 0 && chunk.numVertices > 0)
+						{
+							drawProg.bind();
+							glBindVertexBuffer(0, chunk.vbo, 32, 32);
+							glVertexAttribBinding(0, 0);
+							glVertexAttribBinding(1, 0);
+							
+							glDrawArrays(GL_TRIANGLES, 0, chunk.numVertices);
+
+							numVertices += chunk.numVertices;
+							chunk.bActive = true;
+							activeChunks.push(&chunk);
+						}
+						else if (chunk.numVertices > 0)
+							bUpdate = true;
+					}
+					else
+						bUpdate = true;
+					
+					if (bUpdate)
+					{
+						uint32 vbo;
+						if (vbos.pop(vbo))
+						{
+							// Get new or existing chunk
+							Chunk & chunk = chunks[voxelIndex];
+							
+							// Generate data, render on next frame
+							genProg.bind();
+							genProg.setUniform<const vec3&>("origin", (const vec3&)voxelIndex);
+							glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, perlinTables);
+							glBindImageTexture(0, volumeData, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
+							glDispatchCompute(1, 36, 1);
+							glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+
+							// Generate geometry
+							marchProg.bind();
+							marchProg.setUniform<const vec3&>("origin", (const vec3&)voxelIndex);
+							glNamedBufferSubData(vbo, 0, sizeof(uint32), &zeroReg);
+							glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, vbo);
+							glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, marchingTable);
+							glActiveTexture(GL_TEXTURE0);
+							glBindTexture(GL_TEXTURE_3D, volumeData);
+							glDispatchCompute(1, 32, 1);
+							glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+							ChunkData * chunkData = reinterpret_cast<ChunkData*>(glMapNamedBufferRange(vbo, 0, 64, GL_MAP_READ_BIT));
+							chunk.numVertices = chunkData->index;
+							chunk.vbo = vbo;
+							chunk.bActive = chunk.numVertices > 0;
+							glUnmapNamedBuffer(vbo);
+
+							activeChunks.push(&chunk);
+						}
+					}
+				}
+			}
+		}
+
+		// Release unused buffers
+		for (auto chunkRef : oldActiveChunks)
+			if (!chunkRef->bActive && chunkRef->vbo > 0)
+			{
+				vbos.push(chunkRef->vbo);
+				chunkRef->vbo = 0;
+			}
+		
+		printf("num vertices: %u\n", numVertices);
+		printf("num free buffers: %u\n", vbos.getCount());
+		printf("num active chunks: %u\n", activeChunks.getCount());
+		printf("generated chunks: %u\n", chunks.getCount());
 	#endif
 
 		// Consume mouse input

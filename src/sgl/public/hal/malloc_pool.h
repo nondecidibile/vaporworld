@@ -78,7 +78,7 @@ public:
 	/// Default constructor
 	MallocPool(uint64 _numBlocks = 65536, sizet _blockSize = 64/* Bytes */, sizet blockAlignment = 0x20, void * buffer = nullptr);
 
-	/// @todo Make it non-copyable
+	/// TODO: Make it non-copyable
 
 	/// Destructor
 	FORCE_INLINE ~MallocPool()
