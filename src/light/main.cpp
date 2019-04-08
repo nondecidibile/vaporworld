@@ -554,7 +554,7 @@ int32 main()
 
 	initOpenGL();
 
-	fboSize = point2(1280, 720);
+	fboSize = point2(1920, 1080);
 
 	SDL_Window * window = SDL_CreateWindow("light", 0, 0, fboSize.x, fboSize.y, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
 	SDL_GLContext context = SDL_GL_CreateContext(window);
@@ -722,19 +722,28 @@ int32 main()
 	drawProg.bind();
 	if (drawProg.getStatus() == 0) printf("drawing program not linked correctly\n");
 
-	struct
+	const char * terrainImages[] = {
+		"assets/rock_diffuse.jpg",
+		"assets/grass_diffuse.jpg",
+		"assets/rock_diffuse.jpg"
+	};
+	uvec3 terrainLayers;
+	glGenTextures(3, terrainLayers.buffer);
+	for (uint32 i = 0; i < 3; ++i)
 	{
-		int32 width, height, channels;
-		ubyte * data;
-	} img;
+		struct
+		{
+			int32 width, height, channels;
+			ubyte * data;
+		} img;
+		img.data = stbi_load(terrainImages[i], &img.width, &img.height, &img.channels, 0);
 
-	img.data = stbi_load("assets/grass_diffuse.jpg", &img.width, &img.width, &img.channels, 0);
-	uint32 tex;
-	glGenTextures(1, &tex);
-	glBindTexture(GL_TEXTURE_2D, tex);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, img.width, img.height, 0, GL_RGB, GL_UNSIGNED_BYTE, img.data);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glBindTexture(GL_TEXTURE_2D, terrainLayers[i]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, img.width, img.height, 0, GL_RGB, GL_UNSIGNED_BYTE, img.data);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glGenerateMipmap(GL_TEXTURE_2D);
+	}
 
 	//////////////////////////////////////////////////
 	// Buffer setup
@@ -844,7 +853,7 @@ int32 main()
 	// Camera setup
 	//////////////////////////////////////////////////
 	
-	projectionMatrix = mat4::glProjection(M_PI_2, 0.5f);
+	projectionMatrix = mat4::glProjection(M_PI_2 * 1.1f, 0.1f);
 	cameraLocation = vec3(0.f, 1.f, 0.f);
 	cameraVelocity = vec3::zero;
 	cameraRotation = quat(0.f, vec3::up);
@@ -852,6 +861,12 @@ int32 main()
 	//////////////////////////////////////////////////
 	// Main loop
 	//////////////////////////////////////////////////
+
+	// Start recording
+#if 0
+	ubyte * videoBuffer = new ubyte[fboSize.x * fboSize.y * 4];
+	FILE * videoOut = popen("ffmpeg -r 30 -vsync 1 -f rawvideo -pix_fmt rgba -s 1920x1080 -i - -threads 0 -preset fast -y -pix_fmt yuv420p -crf 21 -framerate 30 -vf vflip ~/videos/output.mp4", "w");
+#endif
 
 	bool bRunning = true;
 	while (bRunning)
@@ -905,7 +920,7 @@ int32 main()
 		// Camera position and rotation
 		//////////////////////////////////////////////////
 
-		const float32 cameraSpeed = 4.f;
+		const float32 cameraSpeed = 3.f;
 		const float32 cameraBrake = 2.f;
 		vec3 cameraAcceleration = cameraRotation * vec3(
 			keys[SDLK_d] - keys[SDLK_a],
@@ -954,7 +969,7 @@ int32 main()
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	#else
-		const ivec3 radius(3, 3, 3);
+		const ivec3 radius(4, 2, 4);
 		uint32 numVertices = 0;
 
 		drawProg.bind();
@@ -986,9 +1001,16 @@ int32 main()
 						if (chunk.vbo > 0 && chunk.numVertices > 0)
 						{
 							drawProg.bind();
+		
 							glBindVertexBuffer(0, chunk.vbo, 32, 32);
 							glVertexAttribBinding(0, 0);
 							glVertexAttribBinding(1, 0);
+
+							for (uint32 i = 0; i < 3; ++i)
+							{
+								glActiveTexture(GL_TEXTURE0 + i);
+								glBindTexture(GL_TEXTURE_2D, terrainLayers[i]);
+							}
 							
 							glDrawArrays(GL_TRIANGLES, 0, chunk.numVertices);
 
@@ -1051,9 +1073,9 @@ int32 main()
 			}
 		
 		printf("num vertices: %u\n", numVertices);
-		printf("num free buffers: %u\n", vbos.getCount());
+		printf("num free buffers: %llu\n", vbos.getCount());
 		printf("num active chunks: %u\n", activeChunks.getCount());
-		printf("generated chunks: %u\n", chunks.getCount());
+		printf("generated chunks: %llu\n", chunks.getCount());
 	#endif
 
 		// Consume mouse input
@@ -1061,6 +1083,11 @@ int32 main()
 		axes["mouseY"] = 0.f;
 
 		SDL_GL_SwapWindow(window);
+
+	#if 0
+		glReadPixels(0, 0, fboSize.x, fboSize.y, GL_RGBA, GL_UNSIGNED_BYTE, videoBuffer);
+		fwrite(videoBuffer, 4, fboSize.x * fboSize.y, videoOut);
+	#endif
 	}
 
 	return 0;

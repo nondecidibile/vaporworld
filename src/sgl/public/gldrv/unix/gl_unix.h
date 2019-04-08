@@ -82,7 +82,7 @@
 	expansion(PFNGLTEXPARAMETERIPROC, glTexParameteri) \
 	expansion(PFNGLPIXELSTOREIPROC, glPixelStorei) \
 	expansion(PFNGLPIXELSTOREFPROC, glPixelStoref) \
-	expansion(PFNGLGENERATEMIPMAPPROC, glGenerateMipMap) \
+	expansion(PFNGLGENERATEMIPMAPPROC, glGenerateMipmap) \
 	expansion(PFNGLDRAWARRAYSPROC, glDrawArrays) \
 	expansion(PFNGLDRAWELEMENTSPROC, glDrawElements) \
 	expansion(PFNGLPOLYGONMODEPROC, glPolygonMode) \
@@ -93,6 +93,7 @@
 	expansion(PFNGLREADBUFFERPROC, glReadBuffer) \
 	expansion(PFNGLDRAWBUFFERPROC, glDrawBuffer) \
 	expansion(PFNGLDRAWBUFFERSPROC, glDrawBuffers) \
+	expansion(PFNGLREADPIXELSPROC, glReadPixels) \
 	expansion(PFNGLBLITFRAMEBUFFERPROC, glBlitFramebuffer) \
 
 #define GL_DECLARE_ENTRYPOINTS(type, func) extern type func;
