@@ -35,12 +35,13 @@ void main()
 	const vec3 viewDir = normalize(inVert.pos - cameraLocation);
 
 	const vec3 ambient = lightColor * 0.2f;
-	const vec3 albedoX = texture(texDiffuseX, uvw.yz).rgb;
+	/* const vec3 albedoX = texture(texDiffuseX, uvw.yz).rgb;
 	const vec3 albedoY = texture(texDiffuseY, uvw.xz).rgb;
-	const vec3 albedoZ = texture(texDiffuseZ, uvw.xy).rgb;
+	const vec3 albedoZ = texture(texDiffuseZ, uvw.xy).rgb; */
 	//const vec3 albedo = mix(sin(inVert.pos) * 0.5f + 0.5f, abs(inVert.norm.rgr), 0.05f);
-	const vec3 trilinearWeight = normalize(pow(abs(inVert.norm), vec3(3.4f)));
-	const vec3 albedo = albedoX * trilinearWeight.x + albedoY * trilinearWeight.y + albedoZ * trilinearWeight.z;
+	//const vec3 trilinearWeight = normalize(pow(abs(inVert.norm), vec3(3.4f)));
+	//const vec3 albedo = albedoX * trilinearWeight.x + albedoY * trilinearWeight.y + albedoZ * trilinearWeight.z;
+	const vec3 albedo = sin(inVert.pos) * 0.5f + 0.5f;
 	const float diffuse = max(dot(lightDir, -inVert.norm), 0.f) * lightIntensity;// * exp(-ligthDist / lightRadius);
 	const float specular = pow(max(dot(reflectionDir, viewDir), 0.f), 16.f) * specularStrength * exp(-ligthDist / lightRadius);
 

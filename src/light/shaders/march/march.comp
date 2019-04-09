@@ -104,22 +104,33 @@ void march(ivec3 voxelIndex)
 		const ivec3 edges = ivec3(edgesTable[j], edgesTable[j + 1], edgesTable[j + 2]);
 		if (edges[0] < 0) return;
 
+		vec3 verts[3];
+
 		const uint vertexIndex = atomicAdd(chunk.index, 3);
 		for (uint j = 0; j < 3; ++j)
 		{
-			const float volumeRes = float(blockResolution + 4);
-			const float d = 1.f / volumeRes;
+			//const float volumeRes = float(blockResolution + 4);
+			//const float d = 1.f / volumeRes;
 			const vec3 vert = vertPerEdge[edges[j]];
 			const vec3 pos = vert / (blockResolution / blockSize);
-			const vec3 uvw = (vert + 2.f) / volumeRes;
-			const vec3 norm = normalize(vec3(
+			//const vec3 uvw = (vert + 2.f) / volumeRes;
+			/* const vec3 norm = normalize(vec3(
 				texture(densityMap, uvw + vec3(  d, 0.f, 0.f)).r - texture(densityMap, uvw - vec3(  d, 0.f, 0.f)).r,
 				texture(densityMap, uvw + vec3(0.f,   d, 0.f)).r - texture(densityMap, uvw - vec3(0.f,   d, 0.f)).r,
 				texture(densityMap, uvw + vec3(0.f, 0.f,   d)).r - texture(densityMap, uvw - vec3(0.f, 0.f,   d)).r
-			));
+			)); */
 
-			chunk.vertices[vertexIndex + j] = Vertex(origin + pos, -norm);
+			//chunk.vertices[vertexIndex + j] = Vertex(origin + pos, -norm);
+			verts[j] = pos;
 		}
+
+		const vec3 d0 = normalize(verts[1] - verts[0]);
+		const vec3 d1 = normalize(verts[2] - verts[0]);
+		const vec3 norm = normalize(cross(d0, d1));
+
+		chunk.vertices[vertexIndex + 0] = Vertex(origin + verts[0], norm);
+		chunk.vertices[vertexIndex + 1] = Vertex(origin + verts[1], norm);
+		chunk.vertices[vertexIndex + 2] = Vertex(origin + verts[2], norm);
 	};
 }
 

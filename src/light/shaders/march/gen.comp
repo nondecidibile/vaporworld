@@ -142,7 +142,7 @@ void main()
 		//float val = rad - length(p.xz); // Column
 		//float val = 0.f; // Caves
 		//float val = -p.y; // Plane
-		val += octaves(p + perlinSample(p, ivec3(256)) * 0.25f, ivec3(256), 5) * 5.f;
+		val += octaves(p + perlinSample(p, ivec3(256)) * 0.25f, ivec3(256), 5) * 3.f;
 		val -= clamp((-0.5f + p.y) * 3.f, 0.f, 1.f) * 16.f;
 		imageStore(densityMap, voxelIndex, vec4(val));
 	}

@@ -284,7 +284,7 @@ union
 uint32 zeroReg = 0;
 
 /// Generation settings
-const int32 blockSize = 1;
+const int32 blockSize = 8;
 const int32 maxBlockResolution = 32;
 
 /// Screen variables
