@@ -284,7 +284,7 @@ union
 uint32 zeroReg = 0;
 
 /// Generation settings
-const int32 blockSize = 8;
+const int32 blockSize = 3;
 const int32 maxBlockResolution = 32;
 
 /// Screen variables
@@ -558,7 +558,7 @@ int32 main()
 
 	initOpenGL();
 
-	fboSize = point2(1920, 1080);
+	fboSize = point2(1280, 720);
 
 	SDL_Window * window = SDL_CreateWindow("light", 0, 0, fboSize.x, fboSize.y, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
 	SDL_GLContext context = SDL_GL_CreateContext(window);
@@ -572,6 +572,8 @@ int32 main()
 	fpsBounds = vec2(FLT_MAX, 0.f);
 
 	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
+	glFrontFace(GL_CW);
 	glPointSize(2);
 
 	//////////////////////////////////////////////////
@@ -976,7 +978,7 @@ int32 main()
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	#else
-		const ivec3 radius(4);
+		const ivec3 radius(3);
 		uint32 numVertices = 0;
 
 		drawProg.bind();

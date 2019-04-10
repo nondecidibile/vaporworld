@@ -34,7 +34,7 @@ void main()
 	const vec3 reflectionDir = reflect(-lightDir, inVert.norm);
 	const vec3 viewDir = normalize(inVert.pos - cameraLocation);
 
-	const vec3 ambient = lightColor * 0.2f;
+	const vec3 ambient = lightColor * 0.1f;
 	/* const vec3 albedoX = texture(texDiffuseX, uvw.yz).rgb;
 	const vec3 albedoY = texture(texDiffuseY, uvw.xz).rgb;
 	const vec3 albedoZ = texture(texDiffuseZ, uvw.xy).rgb; */

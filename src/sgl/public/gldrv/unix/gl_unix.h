@@ -86,6 +86,7 @@
 	expansion(PFNGLDRAWARRAYSPROC, glDrawArrays) \
 	expansion(PFNGLDRAWELEMENTSPROC, glDrawElements) \
 	expansion(PFNGLPOLYGONMODEPROC, glPolygonMode) \
+	expansion(PFNGLFRONTFACEPROC, glFrontFace) \
 	expansion(PFNGLPOINTSIZEPROC, glPointSize) \
 	expansion(PFNGLDISPATCHCOMPUTEPROC, glDispatchCompute) \
 	expansion(PFNGLMEMORYBARRIERPROC, glMemoryBarrier) \
