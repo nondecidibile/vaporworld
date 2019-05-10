@@ -6,15 +6,20 @@ uniform ivec2 framebufferSize;
 uniform mat4 projMatrix;
 uniform mat4 viewMatrix;
 
-/// Perlin tables, readonly
-layout(std430, binding = 0) readonly buffer PerlinTables
+struct PerlinData
 {
 	/// Permutation table
-	int		perms[256];
+	int perms[256];
 
-	/// Corner gradients
-	vec3	grads[256];
-} perlinTables;
+	/// Gradients table
+	vec3 grads[256];
+};
+
+/// Perlin data buffer
+layout(binding = 0, std430) buffer PerlinBuffer
+{
+	PerlinData tables[];
+};
 
 layout(binding = 0, r32f) writeonly uniform image3D volumeData;
 
@@ -35,7 +40,7 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
 float gradient(vec3 p, ivec3 i, ivec3 period)
 {
-	const vec3 grad = perlinTables.grads[perlinTables.perms[(perlinTables.perms[(perlinTables.perms[i.x % period.x] + i.y) % period.y] + i.z) % period.z]];
+	const vec3 grad = tables[0].grads[tables[0].perms[(tables[0].perms[(tables[0].perms[i.x % period.x] + i.y) % period.y] + i.z) % period.z]];
 	return dot(p, grad);
 }
 

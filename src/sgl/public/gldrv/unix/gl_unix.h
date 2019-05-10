@@ -44,6 +44,7 @@
 	expansion(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers) \
 	expansion(PFNGLDELETEFRAMEBUFFERSPROC, glDeleteFramebuffers) \
 	expansion(PFNGLBINDFRAMEBUFFERPROC, glBindFramebuffer) \
+	expansion(PFNGLCHECKFRAMEBUFFERSTATUSPROC, glCheckFramebufferStatus) \
 	expansion(PFNGLFRAMEBUFFERTEXTURE2DPROC, glFramebufferTexture2D) \
 	expansion(PFNGLGENVERTEXARRAYSPROC, glGenVertexArrays) \
 	expansion(PFNGLBINDVERTEXARRAYPROC, glBindVertexArray) \

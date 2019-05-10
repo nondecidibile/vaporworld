@@ -284,7 +284,7 @@ union
 uint32 zeroReg = 0;
 
 /// Generation settings
-const int32 blockSize = 3;
+const int32 blockSize = 1;
 const int32 maxBlockResolution = 32;
 
 /// Screen variables
@@ -581,10 +581,15 @@ int32 main()
 	//////////////////////////////////////////////////
 
 	// Setup perlin noise tables
-	uint32 perlinTables;
+	uint32 perlinTables[2];
 	const sizet perlinTableSize = 0x100 * (sizeof(int32) + sizeof(Vec3<float32, false>));
-	glGenBuffers(1, &perlinTables);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, perlinTables);
+	glGenBuffers(2, perlinTables);
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, perlinTables[0]);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, perlinTableSize, nullptr, GL_STATIC_DRAW);
+	setupPerlin();
+	
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, perlinTables[1]);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, perlinTableSize, nullptr, GL_STATIC_DRAW);
 	setupPerlin();
 
@@ -670,6 +675,24 @@ int32 main()
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 	LOG("volume data generated ...\n");
 #else
+	ShaderProgram fogProg;
+	{
+		uint32 shader = glCreateShader(GL_COMPUTE_SHADER);
+		FileReader source = "src/light/shaders/volume/gen.comp";
+		const char * buffer = source.get<char>();
+		glShaderSource(shader, 1, &buffer, nullptr);
+		glCompileShader(shader);
+		fogProg.setShader(shader);
+
+		int32 status = 0;
+		glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
+		if (status == GL_FALSE) printf("shader not compiled\n");
+	}
+
+	fogProg.link();
+	fogProg.bind();
+	if (fogProg.getStatus() == 0) printf("volume generation program not linked correctly\n");
+
 	ShaderProgram genProg;
 	{
 		uint32 shader = glCreateShader(GL_COMPUTE_SHADER);
@@ -709,7 +732,7 @@ int32 main()
 	ShaderProgram drawProg;
 	{
 		uint32 shader = glCreateShader(GL_VERTEX_SHADER);
-		FileReader source = "src/light/shaders/default/.vert";
+		FileReader source = "src/light/shaders/deferred/.vert";
 		const char * buffer = source.get<char>();
 		glShaderSource(shader, 1, &buffer, nullptr);
 		glCompileShader(shader);
@@ -717,7 +740,7 @@ int32 main()
 	}
 	{
 		uint32 shader = glCreateShader(GL_FRAGMENT_SHADER);
-		FileReader source = "src/light/shaders/default/.frag";
+		FileReader source = "src/light/shaders/deferred/.frag";
 		const char * buffer = source.get<char>();
 		glShaderSource(shader, 1, &buffer, nullptr);
 		glCompileShader(shader);
@@ -729,9 +752,9 @@ int32 main()
 	if (drawProg.getStatus() == 0) printf("drawing program not linked correctly\n");
 
 	const char * terrainImages[] = {
-		"assets/rock_diffuse.jpg",
-		"assets/grass_diffuse.jpg",
-		"assets/rock_diffuse.jpg"
+		"assets/rock2_diffuse.jpg",
+		"assets/sand_diffuse.jpg",
+		"assets/rock2_diffuse.jpg"
 	};
 	uvec3 terrainLayers;
 	glGenTextures(3, terrainLayers.buffer);
@@ -750,6 +773,79 @@ int32 main()
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glGenerateMipmap(GL_TEXTURE_2D);
 	}
+
+	ShaderProgram renderProg;
+	{
+		uint32 shader = glCreateShader(GL_COMPUTE_SHADER);
+		FileReader source = "src/light/shaders/march/gen.comp";
+		const char * buffer = source.get<char>();
+		glShaderSource(shader, 1, &buffer, nullptr);
+		glCompileShader(shader);
+		renderProg.setShader(shader);
+
+		int32 status = 0;
+		glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
+		if (status == GL_FALSE) printf("shader not compiled\n");
+	}
+	
+	renderProg.link();
+	renderProg.bind();
+	if (renderProg.getStatus() == 0) printf("render program not linked correctly\n");
+
+	//////////////////////////////////////////////////
+	// Framebuffer setup
+	//////////////////////////////////////////////////
+	
+	enum DeferredRenderTargets
+	{
+		RT_POSITION = 0,
+		RT_NORMAL,
+		RT_COLOR,
+		RT_DEPTH,
+
+		RT_NUM_RENDER_TARGETS
+	};
+
+	uint32 fbo;
+	glGenFramebuffers(1, &fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+	uint32 renderTargets[RT_NUM_RENDER_TARGETS];
+	glGenTextures(RT_NUM_RENDER_TARGETS, renderTargets);
+
+	/// Position and normal
+	for (uint32 i = RT_POSITION; i <= RT_NORMAL; ++i)
+	{
+		glBindTexture(GL_TEXTURE_2D, renderTargets[i]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, fboSize.x, fboSize.y, 0, GL_RGB, GL_FLOAT, nullptr);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, renderTargets[i], 0);
+	}
+
+	/// Color
+	glBindTexture(GL_TEXTURE_2D, renderTargets[RT_COLOR]);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, fboSize.x, fboSize.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + RT_COLOR, GL_TEXTURE_2D, renderTargets[RT_COLOR], 0);
+
+	/// Depth
+	glBindTexture(GL_TEXTURE_2D, renderTargets[RT_DEPTH]);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, fboSize.x, fboSize.y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, renderTargets[RT_DEPTH], 0);
+
+	uint32 drawBuffers[RT_COLOR - RT_POSITION + 1]; for (uint32 i = RT_POSITION; i <= RT_COLOR; ++i) drawBuffers[i] = GL_COLOR_ATTACHMENT0 + i;
+	glDrawBuffers(RT_COLOR - RT_POSITION + 1, drawBuffers);
+
+	{
+		uint32 status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		if (status != GL_FRAMEBUFFER_COMPLETE)
+			printf("Framebuffer error %x:%u\n", status, status);
+	}
+
+	// Reset default framebuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	//////////////////////////////////////////////////
 	// Buffer setup
@@ -784,27 +880,7 @@ int32 main()
 			uint32 pad1;
 		} vertices[maxBlockResolution * maxBlockResolution * maxBlockResolution * 5];
 	} chunk;
-
-#if SGL_BUILD_DEBUG
-	/* for (uint32 i = 0; i < 32 * 32 * 5; ++i)
-		chunk.vertices[i] = {
-			VertexVec3{rand() / (float32)RAND_MAX, rand() / (float32)RAND_MAX, rand() / (float32)RAND_MAX},
-			VertexVec3{rand() / (float32)RAND_MAX, rand() / (float32)RAND_MAX, rand() / (float32)RAND_MAX}
-		}; */
-#endif
-
-	/* uint32 vao, vbo;
-	glGenVertexArrays(1, &vao);
-	glGenBuffers(1, &vbo);
-
-	glBindVertexArray(vao);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(chunk), &chunk, GL_DYNAMIC_COPY);
-
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(chunk.vertices[0]), (void*)32);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(chunk.vertices[0]), (void*)48);
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(1); */
+	
 	uint32 vao;
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
@@ -854,6 +930,24 @@ int32 main()
 	glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, volumeRes.x, volumeRes.y, volumeRes.z, 0, GL_RED, GL_FLOAT, nullptr);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	//////////////////////////////////////////////////
+	// Fog volume data generation
+	//////////////////////////////////////////////////
+
+	uint32 fogData;
+	glGenTextures(1, &fogData);
+	glBindTexture(GL_TEXTURE_3D, fogData);
+	glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, 256, 256, 256, 0, GL_RED, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+	// Generate data
+	fogProg.bind();
+	glBindImageTexture(0, fogData, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, perlinTables[1]);
+	glDispatchCompute(256 / 8, 256 / 8, 256 / 8);
+	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 #endif
 
 	//////////////////////////////////////////////////
@@ -950,8 +1044,6 @@ int32 main()
 		//////////////////////////////////////////////////
 		// Draw
 		//////////////////////////////////////////////////
-		
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	#if 0
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -981,10 +1073,19 @@ int32 main()
 		const ivec3 radius(3);
 		uint32 numVertices = 0;
 
+		//////////////////////////////////////////////////
+		// Begin chunk rendering
+		//////////////////////////////////////////////////
+
 		drawProg.bind();
 		drawProg.setUniform<const mat4&>("modelMatrix", mat4::eye(1.f));
 		drawProg.setUniform<const mat4&>("viewMatrix", viewMatrix);
-		drawProg.setUniform<const vec3&>("cameraLocation", cameraLocation);
+		
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		const uint32 maxUpdatesPerFrame = 2;
+		uint32 currNumUpdates = 0;
 
 		// Reset active state
 		for (auto chunkRef : activeChunks)
@@ -1012,6 +1113,10 @@ int32 main()
 						{
 							Chunk & chunk = voxelIt->second;
 
+							//////////////////////////////////////////////////
+							// Draw geomtry
+							//////////////////////////////////////////////////
+
 							if (chunk.vbo > 0 && chunk.numVertices > 0)
 							{
 								drawProg.bind();
@@ -1038,7 +1143,11 @@ int32 main()
 						else
 							bUpdate = true;
 						
-						if (bUpdate)
+						//////////////////////////////////////////////////
+						// Generate new geometry
+						//////////////////////////////////////////////////
+
+						if (bUpdate && currNumUpdates < maxUpdatesPerFrame)
 						{
 							uint32 vbo;
 							if (vbos.pop(vbo))
@@ -1051,7 +1160,7 @@ int32 main()
 								genProg.setUniform<float32>("blockSize", (float32)blockSize);
 								genProg.setUniform<int32>("blockResolution", maxBlockResolution);
 								genProg.setUniform<const vec3&>("origin", voxelOrigin);
-								glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, perlinTables);
+								glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, perlinTables[0]);
 								glBindImageTexture(0, volumeData, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
 								glDispatchCompute(1, maxBlockResolution + 4, 1);
 								glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
@@ -1076,6 +1185,8 @@ int32 main()
 								glUnmapNamedBuffer(vbo);
 
 								activeChunks.push(&chunk);
+
+								++currNumUpdates;
 							}
 						}
 					}
@@ -1090,11 +1201,41 @@ int32 main()
 				vbos.push(chunkRef->vbo);
 				chunkRef->vbo = 0;
 			}
-		
+	
+	#if SGL_BUILD_DEBUG
 		printf("num vertices: %u\n", numVertices);
 		printf("num free buffers: %llu\n", vbos.getCount());
 		printf("num active chunks: %u\n", activeChunks.getCount());
 		printf("generated chunks: %llu\n", chunks.getCount());
+	#endif
+
+		//////////////////////////////////////////////////
+		// End Chunk rendering
+		//////////////////////////////////////////////////
+
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+
+	#if SGL_BUILD_DEBUG
+		glReadBuffer(drawBuffers[RT_POSITION]);
+		glBlitFramebuffer(0, 0, fboSize.x, fboSize.y, 0, fboSize.y / 2, fboSize.x / 2, fboSize.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+		glReadBuffer(drawBuffers[RT_NORMAL]);
+		glBlitFramebuffer(0, 0, fboSize.x, fboSize.y, fboSize.x / 2, fboSize.y / 2, fboSize.x, fboSize.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+		glReadBuffer(drawBuffers[RT_COLOR]);
+		glBlitFramebuffer(0, 0, fboSize.x, fboSize.y, 0, 0, fboSize.x / 2, fboSize.y / 2, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+		glReadBuffer(drawBuffers[RT_DEPTH]);
+		glBlitFramebuffer(0, 0, fboSize.x, fboSize.y, fboSize.x / 2, 0, fboSize.x, fboSize.y / 2, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+	#endif
+
+		//////////////////////////////////////////////////
+		// Fog rendering and deferred shading
+		//////////////////////////////////////////////////
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 	#endif
 
 		// Consume mouse input

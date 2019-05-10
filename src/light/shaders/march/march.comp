@@ -109,18 +109,18 @@ void march(ivec3 voxelIndex)
 		const uint vertexIndex = atomicAdd(chunk.index, 3);
 		for (uint j = 0; j < 3; ++j)
 		{
-			//const float volumeRes = float(blockResolution + 4);
-			//const float d = 1.f / volumeRes;
+			const float volumeRes = float(blockResolution + 4);
+			const float d = 1.f / volumeRes;
 			const vec3 vert = vertPerEdge[edges[j]];
 			const vec3 pos = vert / (blockResolution / blockSize);
-			//const vec3 uvw = (vert + 2.f) / volumeRes;
+			const vec3 uvw = (vert + 2.f) / volumeRes;
 			/* const vec3 norm = normalize(vec3(
 				texture(densityMap, uvw + vec3(  d, 0.f, 0.f)).r - texture(densityMap, uvw - vec3(  d, 0.f, 0.f)).r,
 				texture(densityMap, uvw + vec3(0.f,   d, 0.f)).r - texture(densityMap, uvw - vec3(0.f,   d, 0.f)).r,
 				texture(densityMap, uvw + vec3(0.f, 0.f,   d)).r - texture(densityMap, uvw - vec3(0.f, 0.f,   d)).r
-			)); */
+			));
 
-			//chunk.vertices[vertexIndex + j] = Vertex(origin + pos, -norm);
+			chunk.vertices[vertexIndex + j] = Vertex(origin + pos, -norm); */
 			verts[j] = pos;
 		}
 
