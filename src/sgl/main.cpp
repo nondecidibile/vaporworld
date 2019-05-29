@@ -205,7 +205,7 @@ int main(){
 		glBufferData(GL_ARRAY_BUFFER,numVertices*sizeof(Vertex),world.vertices,GL_STATIC_DRAW);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER,numTrianglesIndices*sizeof(uint32),world.trianglesIndices,GL_STATIC_DRAW);
 		
-		float height = 1;
+		float height = 2;
 
 		mat4 transformation = mat4::translation(vec3(-(float)world.X*world.stepSize/2,-height-0.001,0));
 		glUniformMatrix4fv(modelMatrixLocT,1,GL_TRUE,transformation.array);
