@@ -4,6 +4,10 @@
 #include "math/math.h"
 #include <SDL2/SDL.h>
 #include "world/world.h"
+#include "game/importer.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "game/stb_image.h"
 
 Malloc * gMalloc = nullptr;
 
@@ -33,6 +37,12 @@ char* readFile(const char *filename){
 	return data;
 }
 
+template<typename T>
+T lerp(T a, T b, float32 alpha)
+{
+	return a * (1.f - alpha) + b * alpha;
+}
+
 int main(){
 
 	Memory::createGMalloc();
@@ -57,6 +67,10 @@ int main(){
 	uint32 vertexShaderL = glCreateShader(GL_VERTEX_SHADER);
 	uint32 fragmentShaderL = glCreateShader(GL_FRAGMENT_SHADER);
 
+	uint32 programC = glCreateProgram();
+	uint32 vertexShaderC = glCreateShader(GL_VERTEX_SHADER);
+	uint32 fragmentShaderC = glCreateShader(GL_FRAGMENT_SHADER);
+
 	char* vertexShaderTSource = readFile("shaders/shaderT.vert");
 	glShaderSource(vertexShaderT,1,&vertexShaderTSource,nullptr);
 	glCompileShader(vertexShaderT);
@@ -73,6 +87,13 @@ int main(){
 	glShaderSource(fragmentShaderL,1,&fragmentShaderLSource,nullptr);
 	glCompileShader(fragmentShaderL);
 
+	char* vertexShaderCSource = readFile("shaders/shaderC.vert");
+	glShaderSource(vertexShaderC,1,&vertexShaderCSource,nullptr);
+	glCompileShader(vertexShaderC);
+	char* fragmentShaderCSource = readFile("shaders/shaderC.frag");
+	glShaderSource(fragmentShaderC,1,&fragmentShaderCSource,nullptr);
+	glCompileShader(fragmentShaderC);
+
 	glAttachShader(programT,vertexShaderT);
 	glAttachShader(programT,geometryShaderT);
 	glAttachShader(programT,fragmentShaderT);
@@ -81,6 +102,10 @@ int main(){
 	glAttachShader(programL,vertexShaderL);
 	glAttachShader(programL,fragmentShaderL);
 	glLinkProgram(programL);
+
+	glAttachShader(programC,vertexShaderC);
+	glAttachShader(programC,fragmentShaderC);
+	glLinkProgram(programC);
 
 	/* ------------------------------------------------------------- */
 
@@ -110,16 +135,75 @@ int main(){
 
 	/* ------------------------------------------------------------- */
 
+	MeshData carMesh;
+	Importer importer;
+
+	importer.loadScene("assets/lambo.fbx");
+	importer.importStaticMesh(carMesh);
+
+	uint32 car_vao;
+	glGenVertexArrays(1,&car_vao);
+	glBindVertexArray(car_vao);
+
+	uint32 car_vbo, car_ebo;
+	glGenBuffers(1,&car_vbo);
+	glGenBuffers(1,&car_ebo);
+	glBindBuffer(GL_ARRAY_BUFFER,car_vbo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,car_ebo);
+
+	glBufferData(GL_ARRAY_BUFFER,carMesh.vertexBuffer.getBytes(),*carMesh.vertexBuffer,GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER,carMesh.indexBuffer.getBytes(),*carMesh.indexBuffer,GL_STATIC_DRAW);
+
+	glVertexAttribFormat(0,3,GL_FLOAT,GL_FALSE,0);
+	glVertexAttribFormat(1,3,GL_FLOAT,GL_FALSE,12);
+	glVertexAttribFormat(3,2,GL_FLOAT,GL_FALSE,36);
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+	glEnableVertexAttribArray(3);
+
+	/* ------------------------------------------------------------- */
+
+	enum TextureType{
+		DIFFUSE = 0,
+		GLOSS,
+		SPECULAR,
+
+		NUM_TEXTURES
+	};
+
+	const char *textureFiles[] = {
+		"assets/lambo_diffuse.jpeg",
+		"assets/lambo_gloss.jpeg",
+		"assets/lambo_spec.jpeg"
+	};
+
+	uint32 textures[NUM_TEXTURES];
+	glGenTextures(NUM_TEXTURES, textures);
+	for(int i=0; i<NUM_TEXTURES; i++){
+		int32 width, height, channels;
+		ubyte *data = stbi_load(textureFiles[i],&width,&height,&channels,0);
+		glBindTexture(GL_TEXTURE_2D,textures[i]);
+		glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,width,height,0,GL_RGB,GL_UNSIGNED_BYTE,data);
+		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+		glGenerateMipMap(GL_TEXTURE_2D);
+		stbi_image_free(data);
+	}
+
+	/* ------------------------------------------------------------- */
+
 	cameraLocation = vec3(0,0,0);
-	cameraRotation = quat(-M_PI_2,vec3::up);
+	cameraRotation = quat(0,vec3::up);
 	cameraVelocity = vec3::zero;
 	projectionMatrix = mat4::glProjection(M_PI/2, 0.1f);
 
 	int32 viewMatrixLocT = glGetUniformLocation(programT,"viewMatrix");
 	int32 viewMatrixLocL = glGetUniformLocation(programL,"viewMatrix");
+	int32 viewMatrixLocC = glGetUniformLocation(programC,"viewMatrix");
 
 	uint32 camLocUniformT = glGetUniformLocation(programT, "cameraLocation");
 	uint32 camLocUniformL = glGetUniformLocation(programL, "cameraLocation");
+	uint32 camLocUniformC = glGetUniformLocation(programC, "cameraLocation");
 
 	struct Model {
 		vec3 location;
@@ -132,11 +216,20 @@ int main(){
 
 	int32 modelMatrixLocT = glGetUniformLocation(programT,"modelMatrix");
 	int32 modelMatrixLocL = glGetUniformLocation(programL,"modelMatrix");
+	int32 modelMatrixLocC = glGetUniformLocation(programC,"modelMatrix");
 	
 	int32 timeColorLocL = glGetUniformLocation(programL,"timeColor");
 	int32 timeColorLocT = glGetUniformLocation(programT,"timeColor");
 	vec4 timeColorVec = vec4(0,0,0,0);
 	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+	Model carModel{
+		vec3(0,-0.5,0),
+		quat(M_PI_2,vec3::right),
+		vec3(0.001)
+	};
+
+	vec3 carSpeed = vec3(0.f);
 	
 	/* ------------------------------------------------------------- */
 
@@ -170,6 +263,11 @@ int main(){
 			}
 		}
 
+		// Move car
+		vec3 carAcceleration = vec3::forward * (keys[SDLK_w] - keys[SDLK_s]) * 12.f - carSpeed;
+		carSpeed += carAcceleration * dt;
+		carModel.location += carSpeed * dt;
+
 		/*
 		*	CAMERA
 		*/
@@ -181,7 +279,7 @@ int main(){
 		float y_rotation = (keys[SDLK_DOWN]-keys[SDLK_UP])*2*dt;
 		cameraRotation = quat(x_rotation,vec3::up)*quat(y_rotation,cameraRotation.right()) * cameraRotation;
 
-		const float32 accelFactor = 12.f;
+		/* const float32 accelFactor = 12.f;
 		const float32 brakeFactor = 2.f;
 		vec3 cameraAcceleration = vec3(
 			(keys[SDLK_d] - keys[SDLK_a]),
@@ -192,15 +290,25 @@ int main(){
 		direction.y = 0.0f;
 		if(!direction.isNearlyZero()) direction.normalize();
 		cameraVelocity += (direction * accelFactor - cameraVelocity * brakeFactor) * dt;
-		cameraLocation += cameraVelocity * dt;
+		cameraLocation += cameraVelocity * dt; */
+		vec3 targetCameraLocation = carModel.location + cameraRotation.backward() * 1.5f;
+		cameraLocation = lerp(cameraLocation, targetCameraLocation, 0.5f);
 
 		mat4 cameraMatrix = mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation);
+
+		/* carModel.location.x = cameraLocation.x;
+		carModel.location.z = cameraLocation.z + 1; */
+
 
 		/*
 		*	DRAW
 		*/
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		glBindVertexArray(vao);
+		glBindBuffer(GL_ARRAY_BUFFER,vbo);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,ebo);
 
 		Vertex *vertices;
 		uint32 *trianglesIndices, *linesIndices;
@@ -256,6 +364,28 @@ int main(){
 				*/
 			}
 		}
+
+		//carModel.rotation = quat(dt * 1.f, vec3::up) * carModel.rotation;
+
+		glUseProgram(programC);
+
+		glBindVertexArray(car_vao);
+		glBindVertexBuffer(0,car_vbo,0,sizeof(VertexData));
+		glVertexAttribBinding(0,0);
+		glVertexAttribBinding(1,0);
+		glVertexAttribBinding(3,0);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, car_ebo);
+
+		glUniform3fv(camLocUniformC, 1, cameraLocation.buffer);
+		glUniformMatrix4fv(viewMatrixLocC,1,GL_TRUE,(projectionMatrix * cameraMatrix).array);
+		glUniformMatrix4fv(modelMatrixLocC,1,GL_TRUE,carModel.getTransform().array);
+
+		for(int i=0; i<NUM_TEXTURES; i++){
+			glActiveTexture(GL_TEXTURE0+i);
+			glBindTexture(GL_TEXTURE_2D,textures[i]);
+		}
+
+		glDrawElements(GL_TRIANGLES,carMesh.indexBuffer.getCount(),GL_UNSIGNED_INT,0);
 
 		SDL_GL_SwapWindow(window);
 	}

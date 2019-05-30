@@ -24,6 +24,7 @@ add_library(${PROJECT_NAME}
 ### OpenGL
 find_package(SDL2 REQUIRED)
 find_package(OpenGL REQUIRED)
+find_package(FBXSDK REQUIRED)
 
 if(NOT SDL2_FOUND)
 	message(FATAL_ERROR "SDL2 not found! `sudo apt-get install libsdl2-dev`")
@@ -38,6 +39,8 @@ target_link_libraries(${PROJECT_NAME}
 
 	${SDL2_LIBRARIES}
 	${OPENGL_LIBRARIES}
+	${FBXSDK_LIBRARIES}
+	${CMAKE_DL_LIBS}
 )
 
 ## Include directories
@@ -47,6 +50,7 @@ target_include_directories(${PROJECT_NAME}
 		public
 		${SDL2_INCLUDE_DIRS}
 		${OPENGL_INCLUDE_DIR}
+		${FBXSDK_INCLUDE_DIR}
 )
 
 # Setup test executable -------------------------

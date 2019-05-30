@@ -49,7 +49,15 @@
 	expansion(PFNGLCULLFACEPROC, glCullFace) \
 	expansion(PFNGLLINEWIDTHPROC, glLineWidth) \
 	expansion(PFNGLBLENDFUNCPROC, glBlendFunc) \
-	expansion(PFNGLHINTPROC, glHint)
+	expansion(PFNGLHINTPROC, glHint) \
+	expansion(PFNGLVERTEXATTRIBFORMATPROC, glVertexAttribFormat) \
+	expansion(PFNGLBINDVERTEXBUFFERPROC, glBindVertexBuffer) \
+	expansion(PFNGLVERTEXATTRIBBINDINGPROC, glVertexAttribBinding) \
+	expansion(PFNGLGENTEXTURESPROC, glGenTextures) \
+	expansion(PFNGLTEXIMAGE2DPROC, glTexImage2D) \
+	expansion(PFNGLTEXPARAMETERIPROC, glTexParameteri) \
+	expansion(PFNGLACTIVETEXTUREPROC, glActiveTexture) \
+	expansion(PFNGLGENERATEMIPMAPPROC, glGenerateMipMap)
 
 #define GL_DECLARE_ENTRYPOINTS(type, func) extern type func;
 
