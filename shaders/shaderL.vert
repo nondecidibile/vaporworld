@@ -18,10 +18,10 @@ void main(){
     vec3 FragPos = vec3(modelMatrix * pos);
     
     float x = timeColor.x;
-    float r = 0.3;//0.5+0.5*sin(10*x);
-    float g = 0.7;
-    float b = 1.0;//0.5-0.5*sin(10*x);
-    vColor = vec4(r,g,b,1);
+    float r = 0.1;//0.5+0.5*sin(10*x);
+    float g = 0.0;
+    float b = 0.1;//0.5-0.5*sin(10*x);
+    vColor = vec4(r,g,b,0.2);
 
     gl_Position = viewMatrix * vec4(FragPos, 1.f);
 }

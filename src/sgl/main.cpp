@@ -279,7 +279,7 @@ int main(){
 		float y_rotation = (keys[SDLK_DOWN]-keys[SDLK_UP])*2*dt;
 		cameraRotation = quat(x_rotation,vec3::up)*quat(y_rotation,cameraRotation.right()) * cameraRotation;
 
-		/* const float32 accelFactor = 12.f;
+		const float32 accelFactor = 12.f;
 		const float32 brakeFactor = 2.f;
 		vec3 cameraAcceleration = vec3(
 			(keys[SDLK_d] - keys[SDLK_a]),
@@ -290,9 +290,9 @@ int main(){
 		direction.y = 0.0f;
 		if(!direction.isNearlyZero()) direction.normalize();
 		cameraVelocity += (direction * accelFactor - cameraVelocity * brakeFactor) * dt;
-		cameraLocation += cameraVelocity * dt; */
-		vec3 targetCameraLocation = carModel.location + cameraRotation.backward() * 1.5f;
-		cameraLocation = lerp(cameraLocation, targetCameraLocation, 0.5f);
+		cameraLocation += cameraVelocity * dt;
+		/*vec3 targetCameraLocation = carModel.location + cameraRotation.backward() * 1.5f;
+		cameraLocation = lerp(cameraLocation, targetCameraLocation, 0.5f);*/
 
 		mat4 cameraMatrix = mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation);
 
@@ -341,7 +341,7 @@ int main(){
 				glUniformMatrix4fv(modelMatrixLocT,1,GL_TRUE,transformation.array);
 				glDrawElements(GL_TRIANGLES,blockTrianglesIndices,GL_UNSIGNED_INT,(void*)0);
 
-				/*glUseProgram(programL);
+				glUseProgram(programL);
 				glUniform4fv(timeColorLocL,1,timeColorVec.buffer);
 				glUniform3fv(camLocUniformL, 1, cameraLocation.buffer);
 				glUniformMatrix4fv(viewMatrixLocL,1,GL_TRUE,(projectionMatrix * cameraMatrix).array);
@@ -361,7 +361,7 @@ int main(){
 				glUniformMatrix4fv(modelMatrixLocL,1,GL_TRUE,transformation.array);
 				glBufferData(GL_ELEMENT_ARRAY_BUFFER,blockLinesIndices*sizeof(uint32),linesIndices,GL_STATIC_DRAW);
 				glDrawElements(GL_LINES,blockLinesIndices,GL_UNSIGNED_INT,(void*)0);
-				*/
+
 			}
 		}
 
