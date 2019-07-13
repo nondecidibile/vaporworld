@@ -139,12 +139,12 @@ void main()
 		const vec3 pw = p + perlinSample(p, ivec3(256)) * 0.f;
 
 		float rad = 8.f;
-		float val = rad - length(p - vec3(0.f, -rad, 0.f)); // Planet
+		//float val = rad - length(p - vec3(0.f, -rad, 0.f)); // Planet
 		//float val = rad - length(p.xz); // Column
 		//float val = 0.f; // Caves
-		//float val = -pw.y; // Plane
-		val += octaves(pw, ivec3(256), 11) * 1024.f;
-		//val -= clamp((-0.5f + pw.y) * 3.f, 0.f, 1.f) * 2.f;
+		float val = -pw.y; // Plane
+		val += octaves(pw, ivec3(256), 11) * 6.f;
+		//val -= clamp((-0.2f + pw.y) * 3.f, 0.f, 1.f) * 8.f;
 		imageStore(densityMap, voxelIndex, vec4(val));
 	}
 }

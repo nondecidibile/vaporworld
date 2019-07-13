@@ -5,6 +5,7 @@ layout(location = 1) in vec3 inNorm;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
+uniform float currTime;
 
 out Vertex
 {

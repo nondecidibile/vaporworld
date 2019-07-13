@@ -1,0 +1,223 @@
+#version 450 core
+
+uniform float time;
+uniform float samplingStep;
+uniform ivec2 fboSize;
+uniform mat4 projMatrix;
+uniform mat4 viewMatrix;
+uniform vec3 cameraLocation;
+
+struct PointLight
+{
+	vec3 pos;
+	vec3 color;
+	float radius;
+};
+
+layout(binding = 0, std430) buffer PointLightBuffer
+{
+	/// Num point lights
+	uint numLights;
+
+	/// Lights data
+	PointLight lights[];
+} pointLights;
+
+layout(binding = 10) uniform sampler3D fogData;
+layout(binding = 0) uniform sampler2D inPos;
+layout(binding = 1) uniform sampler2D inNorm;
+layout(binding = 2) uniform sampler2D inColor;
+layout(binding = 3) uniform sampler2D inDepth;
+layout(binding = 0, rgba32f) writeonly uniform image2D backbuffer;
+
+float sampleNoise(vec3 p)
+{
+	return texture(fogData, p + vec3(time, 0.f, time) * 0.05f).r;
+}
+
+float octaves(vec3 p, int numOctaves)
+{
+	float f = 1.f;
+	float s = 0.5f;
+	float v = 0.f;
+
+	for (int i = 0; i < numOctaves; ++i, f *= 2.f, s *= 0.5f)
+		v += sampleNoise(p * f) * s;
+	
+	return v;
+}
+
+float monoOctaves(vec3 p, int numOctaves)
+{
+	float f = 1.f;
+	float s = 1.f;
+	float v = 0.f;
+
+	for (int i = 0; i < numOctaves; ++i, f *= 2.f, s *= 0.5f)
+		v += max(sampleNoise(p * f) * s, 0.f);
+	
+	return v;
+}
+
+float sampleVolume(vec3 traceStart, vec3 traceEnd, float samplingStep, int numSamples)
+{
+	const vec3 ray	= traceEnd - traceStart;
+	const vec3 dir	= normalize(ray);
+	const float len = length(ray);
+
+	float val = 0.f;
+	float s = 0.5f;
+
+	for (float t = 1.f; numSamples > 0 && val < 1.f; t += samplingStep, s *= 1.f, --numSamples)
+	{
+		const vec3 p = traceStart + t * dir;
+		val += sampleNoise(p / 4.f) * s;
+	}
+
+	val = min(val, 1.f);
+	return val;
+}
+
+vec3 sampleVolumeRgb(vec3 traceStart, vec3 traceEnd, float samplingStep, int numSamples)
+{
+	const vec3 ray	= traceEnd - traceStart;
+	const vec3 dir	= normalize(ray);
+	const float len = length(ray);
+
+	vec3 val = vec3(0.f);
+	float s = 0.5f;
+
+	for (float t = 0.4f; numSamples > 0 && t < len; t += samplingStep, s *= 0.9f, --numSamples)
+	{
+		const vec3 p = traceStart + t * dir;
+		val += sampleNoise(p / 4.f) * normalize(0.5f + 0.5f * cos(p)) * s;
+	}
+
+	val = min(val, vec3(1.f));
+	return val;
+}
+
+vec4 sampleVolumeRgba(vec3 traceStart, vec3 traceEnd, float samplingStep, int numSamples, float depth)
+{
+	const vec3 ray	= traceEnd - traceStart;
+	const vec3 dir	= normalize(ray);
+	const float len = min(length(ray), depth);
+
+	vec4 val = vec4(0.f);
+	float s = 0.5f;
+	float r = 1.1f;
+
+	for (float t = 0.2f; numSamples > 0 && t < len; t += samplingStep, samplingStep *= r, s *= 0.9f, --numSamples)
+	{
+		const vec3 p = traceStart + t * dir;
+		val += sampleNoise(p / 4.f) * vec4(normalize(0.5f + 0.5f * cos(p / 2.f)), 1.f) * s;
+	}
+
+	val = min(val, vec4(1.f));
+	return val;
+}
+
+vec4 sampleVolumeMCRgba(vec3 traceStart, vec3 traceEnd, float samplingStep, float depth, uint maxSteps)
+{
+	const vec3 ray = traceEnd - traceStart;
+	const vec3 dir = normalize(ray);
+	const float dist = length(ray);
+	const float len = min(dist, depth);
+
+	vec4 val = vec4(0.f);
+	float s = 0.f, t;
+	uint i = 0;
+
+	for (t = s; t < len && i < maxSteps; t += samplingStep, samplingStep *= 1.05f, ++i)
+	{
+		const vec3 p = traceStart + t * dir;
+		val += sampleNoise(p / 4.f) * vec4(normalize(sin(p) * 0.5f + 0.5f), 1.f);
+	}
+
+	return min(val * (t - s) / i, vec4(1.f));
+}
+
+struct Vertex
+{
+	vec3 pos;
+	vec3 norm;
+} inVert;
+
+/// Local work group setup
+layout(local_size_x = 48, local_size_y = 27) in;
+void main()
+{
+	const vec2 uv = vec2(gl_GlobalInvocationID.xy) / vec2(fboSize);
+
+	mat4 invProjMatrix = inverse(viewMatrix);
+	vec2 clipCoords = vec2(gl_GlobalInvocationID.xy * 2) / vec2(fboSize) - 1.f;
+	vec4 nearPlane	= (invProjMatrix * vec4(clipCoords, -1.f, 1.f));
+	vec4 farPlane	= (invProjMatrix * vec4(clipCoords, 1.f, 1.f));
+	vec3 traceStart	= nearPlane.xyz / nearPlane.w;
+	vec3 traceEnd	= farPlane.xyz / farPlane.w;
+	float depth = texture(inDepth, uv).r;
+
+	const vec4 val = sampleVolumeMCRgba(traceStart, traceEnd, 0.0333f, length(inVert.pos - cameraLocation), 40);
+
+	const vec2 wuv = uv + (val.a - 0.5f) / 16.f;
+	inVert.pos = texture(inPos, wuv).xyz;
+	inVert.norm = texture(inNorm, wuv).xyz;
+	depth = texture(inDepth, wuv).r;
+
+	vec3 albedo = (sin(inVert.pos) * 0.5f + 0.5f);
+	vec3 ambient = vec3(0.1f, 0.1f, 0.2f);
+	vec3 diffuse = vec3(0.f);
+	vec3 specular = vec3(0.f);
+
+	for (int i = 0; i < pointLights.numLights; ++i)
+	{
+		const vec3 lightPos = pointLights.lights[i].pos;
+		const vec3 lightColor = pointLights.lights[i].color;
+		const float lightRadius = pointLights.lights[i].radius;
+
+		const vec3 lightRay = inVert.pos - lightPos;
+		const vec3 lightDir = normalize(lightRay);
+		const float lightDist = length(lightRay);
+		const vec3 reflectionDir = reflect(lightDir, -inVert.norm);
+		const vec3 viewDir = normalize(inVert.pos - cameraLocation);
+
+		diffuse += max(dot(lightDir, -inVert.norm), 0.f) * lightColor * exp(-lightDist / lightRadius);
+		specular += pow(max(dot(reflectionDir, viewDir), 0.f), 16.f) * lightColor * exp(-lightDist / lightRadius);
+	}
+
+	/* const vec3 lightOrientation = normalize(vec3(-0.5f, -1.f, 0.9f));
+	const vec3 lightPos = vec3(0.f, 5.f, 0.f);
+	const vec3 lightColor = normalize(vec3(0.7f, 0.8f, 1.f));
+	const float lightRadius = 20.f;
+	const float lightIntensity = 1.2f;
+	const float specularStrength = 0.85f;
+	const float specularFactor = 16.f;
+
+	const vec3 lightRay = inVert.pos - lightPos;
+	const vec3 lightDir = lightOrientation;//normalize(lightRay);
+	const float ligthDist = length(lightRay);
+	const vec3 reflectionDir = reflect(-lightDir, inVert.norm);
+	const vec3 viewDir = normalize(inVert.pos - cameraLocation);
+
+	const vec3 ambient = lightColor * 0.333f;
+	const vec3 albedo = (sin(inVert.pos) * 0.5f + 0.5f);
+	const float diffuse = max(dot(lightDir, -inVert.norm), 0.f) * lightIntensity;
+	const float specular = pow(max(dot(reflectionDir, viewDir), 0.f), 16.f) * specularStrength * exp(-ligthDist / lightRadius); */
+
+	const vec3 finalColor = (ambient + diffuse + specular) * albedo;
+	//imageStore(backbuffer, ivec2(gl_GlobalInvocationID.xy), vec4(finalColor, 1.f));
+	//imageStore(backbuffer, ivec2(gl_GlobalInvocationID.xy), vec4(mix(finalColor, val.rgb * vec3(0.1f, 0.2f, 0.5f), pow(depth, 2.f)), 1.f));
+	imageStore(backbuffer, ivec2(gl_GlobalInvocationID.xy), vec4(mix(finalColor, val.rgb/*  * vec3(0.2f, 0.3f, 0.7f) */, val.a), 1.f));
+
+	/// Compute noise value
+	//const float val = sampleVolume(traceStart, traceEnd, 0.12f, 32);
+	//imageStore(colorBuffer, ivec2(gl_GlobalInvocationID.xy), vec4(normalize(abs(traceStart) + 1.f) * val, 1.f));
+
+	/* const vec4 val = sampleVolumeRgba(traceStart, traceEnd, 0.05f, 32, length(inVert.pos - cameraLocation));
+	imageStore(backbuffer, ivec2(gl_GlobalInvocationID.xy), mix(vec4(finalColor, 1.f), val, depth)); */
+
+	/* const vec4 val = sampleVolumeMCRgba(traceStart, traceEnd, 0.25f, length(inVert.pos - cameraLocation), 32);
+	imageStore(backbuffer, ivec2(gl_GlobalInvocationID.xy), mix(vec4(finalColor, 1.f), val, val.a)); */
+
+	//imageStore(backbuffer, ivec2(gl_GlobalInvocationID.xy), texture(inDepth, vec2(gl_GlobalInvocationID.xy) / vec2(1280.f, 720.f)).rrrr);
+}

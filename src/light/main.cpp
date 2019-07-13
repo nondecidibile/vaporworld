@@ -284,11 +284,11 @@ union
 uint32 zeroReg = 0;
 
 /// Generation settings
-const int32 blockSize = 1;
+const int32 blockSize = 2;
 const int32 maxBlockResolution = 32;
 
 /// Screen variables
-point2 fboSize;
+point2 fboSize = point2(1920, 1080);
 
 /// Time variables
 float32 dt;
@@ -304,38 +304,6 @@ vec3 cameraVelocity;
 quat cameraRotation;
 mat4 cameraTransform;
 mat4 projectionMatrix;
-
-union VertexVec3
-{
-	float32 array[3];
-
-	struct
-	{
-		float32 x, y, z;
-	};
-
-	struct
-	{
-		float32 r, g, b;
-	};
-};
-
-struct VertexColor
-{
-	uint32 data;
-
-	struct
-	{
-		ubyte r, g, b, a;
-	};
-};
-
-struct VertexData
-{
-	VertexVec3 pos;
-	VertexVec3 norm;
-	VertexColor color;
-};
 
 class FileReader
 {
@@ -496,19 +464,6 @@ FORCE_INLINE void ShaderProgram::setUniform<const mat4&>(const String & key, con
 	});
 }
 
-class Chunk
-{
-protected:
-	/// Density map
-	uint32 densityMap;
-
-	/// Vertex buffer
-	uint32 vertexBuffer;
-
-public:
-protected:
-};
-
 void setupPerlin()
 {
 	int32 perms[0x100];
@@ -540,6 +495,22 @@ void setupPerlin()
 	glBufferSubData(GL_SHADER_STORAGE_BUFFER, offset, 0x100 * sizeof(grads[0]), grads);
 };
 
+struct alignas(16) PointLight
+{
+	vec3 pos;
+
+	union
+	{
+		vec3 color;
+
+		struct
+		{
+			float32 pad[3];
+			float32 radius;
+		};
+	};
+};
+
 int32 main()
 {
 	/**
@@ -558,8 +529,6 @@ int32 main()
 
 	initOpenGL();
 
-	fboSize = point2(1280, 720);
-
 	SDL_Window * window = SDL_CreateWindow("light", 0, 0, fboSize.x, fboSize.y, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
 	SDL_GLContext context = SDL_GL_CreateContext(window);
 	SDL_GL_SetSwapInterval(1);
@@ -574,7 +543,7 @@ int32 main()
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glFrontFace(GL_CW);
-	glPointSize(2);
+	glPointSize(8);
 
 	//////////////////////////////////////////////////
 	// Program setup
@@ -777,7 +746,7 @@ int32 main()
 	ShaderProgram renderProg;
 	{
 		uint32 shader = glCreateShader(GL_COMPUTE_SHADER);
-		FileReader source = "src/light/shaders/march/gen.comp";
+		FileReader source = "src/light/shaders/deferred/.comp";
 		const char * buffer = source.get<char>();
 		glShaderSource(shader, 1, &buffer, nullptr);
 		glCompileShader(shader);
@@ -811,7 +780,9 @@ int32 main()
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
 	uint32 renderTargets[RT_NUM_RENDER_TARGETS];
+	uint32 backbuffer;
 	glGenTextures(RT_NUM_RENDER_TARGETS, renderTargets);
+	glGenTextures(1, &backbuffer);
 
 	/// Position and normal
 	for (uint32 i = RT_POSITION; i <= RT_NORMAL; ++i)
@@ -833,7 +804,16 @@ int32 main()
 	/// Depth
 	glBindTexture(GL_TEXTURE_2D, renderTargets[RT_DEPTH]);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, fboSize.x, fboSize.y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, renderTargets[RT_DEPTH], 0);
+
+	/// Backbuffer
+	glBindTexture(GL_TEXTURE_2D, backbuffer);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, fboSize.x, fboSize.y, 0, GL_RGBA, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT4, GL_TEXTURE_2D, backbuffer, 0);
 
 	uint32 drawBuffers[RT_COLOR - RT_POSITION + 1]; for (uint32 i = RT_POSITION; i <= RT_COLOR; ++i) drawBuffers[i] = GL_COLOR_ATTACHMENT0 + i;
 	glDrawBuffers(RT_COLOR - RT_POSITION + 1, drawBuffers);
@@ -860,24 +840,15 @@ int32 main()
 		uint32 pad0[3];
 
 		/// Chunk origin
-		VertexVec3 origin;
-
-		/// Padding
-		uint32 pad1;
+		vec3 origin;
 
 		struct
 		{
 			/// Vertex position
-			VertexVec3 pos;
-
-			/// Padding
-			uint32 pad0;
+			vec3 pos;
 
 			/// Vertex normal
-			VertexVec3 norm;
-
-			/// Padding
-			uint32 pad1;
+			vec3 norm;
 		} vertices[maxBlockResolution * maxBlockResolution * maxBlockResolution * 5];
 	} chunk;
 	
@@ -951,6 +922,41 @@ int32 main()
 #endif
 
 	//////////////////////////////////////////////////
+	// Lights setup
+	//////////////////////////////////////////////////
+	
+	Array<PointLight> pointLights;
+	pointLights.push(PointLight{
+		vec3(0.f, 6.f, 0.f),
+		vec3(0.f, 0.f, 2.f)
+	});
+	pointLights.push(PointLight{
+		vec3(-5.f, 9.f, 4.f),
+		vec3(2.f, 0.f, 0.f),
+	});
+	pointLights.push(PointLight{
+		vec3(5.f, 8.f, 8.f),
+		vec3(1.3f, 1.5f, 0.4f),
+	});
+	pointLights.push(PointLight{
+		vec3(-5.f, 5.f, -10.f),
+		vec3(0.f, 2.f, 0.f),
+	});
+
+	pointLights[0].radius = 4.5f;
+	pointLights[1].radius = 4.5f;
+	pointLights[2].radius = 10.f;
+	pointLights[3].radius = 2.f;
+
+	uint32 pointLightsBuffer;
+	uint32 numLights = pointLights.getCount();
+	glGenBuffers(1, &pointLightsBuffer);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, pointLightsBuffer);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(vec4) + pointLights.getBytes(), nullptr, GL_DYNAMIC_DRAW);
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(uint32), &numLights);
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(vec4), pointLights.getBytes(), *pointLights);
+
+	//////////////////////////////////////////////////
 	// Camera setup
 	//////////////////////////////////////////////////
 	
@@ -979,7 +985,7 @@ int32 main()
 
 		printf("%.4f s -> %f fps [%.4f : %.4f]\n", dt, currFps, fpsBounds[0], fpsBounds[1]);
 
-		if (currFps > 50.f)
+		if (currFps > 30.f)
 		{
 			fpsBounds[0] = Math::min(fpsBounds[0], currFps);
 			fpsBounds[1] = Math::max(fpsBounds[1], currFps);
@@ -1032,14 +1038,19 @@ int32 main()
 		cameraLocation += cameraVelocity * dt;
 
 		cameraRotation
-			= quat((keys[SDLK_RIGHT] - keys[SDLK_LEFT] + axes["mouseX"] * 0.5f) * dt, vec3::up)
-			* quat((keys[SDLK_DOWN] - keys[SDLK_UP] + axes["mouseY"] * 0.5f) * dt, cameraRotation.right())
+			= quat((keys[SDLK_RIGHT] - keys[SDLK_LEFT] + axes["mouseX"] * 0.333f) * dt, vec3::up)
+			* quat((keys[SDLK_DOWN] - keys[SDLK_UP] + axes["mouseY"] * 0.333f) * dt, cameraRotation.right())
 			* cameraRotation;
 
 		cameraTransform = mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation);
 		const mat4 viewMatrix = projectionMatrix * cameraTransform;
 		const vec3 cameraDir = cameraRotation.forward();
 		cameraDir.print();
+
+		// Update point light
+		pointLights[2].pos = cameraLocation;
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, pointLightsBuffer);
+		glBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(vec4), pointLights.getBytes(), *pointLights);
 
 		//////////////////////////////////////////////////
 		// Draw
@@ -1070,7 +1081,7 @@ int32 main()
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	#else
-		const ivec3 radius(3);
+		const ivec3 radius(4, 3, 4);
 		uint32 numVertices = 0;
 
 		//////////////////////////////////////////////////
@@ -1080,6 +1091,7 @@ int32 main()
 		drawProg.bind();
 		drawProg.setUniform<const mat4&>("modelMatrix", mat4::eye(1.f));
 		drawProg.setUniform<const mat4&>("viewMatrix", viewMatrix);
+		drawProg.setUniform<float32>("currTime", currTime);
 		
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1213,26 +1225,55 @@ int32 main()
 		// End Chunk rendering
 		//////////////////////////////////////////////////
 
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-
-	#if SGL_BUILD_DEBUG
-		glReadBuffer(drawBuffers[RT_POSITION]);
-		glBlitFramebuffer(0, 0, fboSize.x, fboSize.y, 0, fboSize.y / 2, fboSize.x / 2, fboSize.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
-		glReadBuffer(drawBuffers[RT_NORMAL]);
-		glBlitFramebuffer(0, 0, fboSize.x, fboSize.y, fboSize.x / 2, fboSize.y / 2, fboSize.x, fboSize.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
-		glReadBuffer(drawBuffers[RT_COLOR]);
-		glBlitFramebuffer(0, 0, fboSize.x, fboSize.y, 0, 0, fboSize.x / 2, fboSize.y / 2, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
-		glReadBuffer(drawBuffers[RT_DEPTH]);
-		glBlitFramebuffer(0, 0, fboSize.x, fboSize.y, fboSize.x / 2, 0, fboSize.x, fboSize.y / 2, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-	#endif
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
 
 		//////////////////////////////////////////////////
 		// Fog rendering and deferred shading
 		//////////////////////////////////////////////////
+
+		renderProg.bind();
+		renderProg.setUniform<float32>("time", currTime);
+		renderProg.setUniform<ivec2>("fboSize", fboSize);
+		renderProg.setUniform<float32>("samplingStep", 0.5f);
+		renderProg.setUniform<const mat4&>("viewMatrix", viewMatrix);
+		renderProg.setUniform<const vec3&>("cameraLocation", cameraLocation);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, pointLightsBuffer);
+		for (uint32 i = RT_POSITION; i <= RT_COLOR; ++i)
+		{
+			glActiveTexture(GL_TEXTURE0 + i);
+			glBindTexture(GL_TEXTURE_2D, renderTargets[i]);
+		}
+		glActiveTexture(GL_TEXTURE0 + RT_DEPTH);
+		glBindTexture(GL_TEXTURE_2D, renderTargets[RT_DEPTH]);
+		glActiveTexture(GL_TEXTURE10);
+		glBindTexture(GL_TEXTURE_3D, fogData);
+		glBindImageTexture(0, backbuffer, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+		glDispatchCompute(fboSize.x / 48, fboSize.y / 27, 1);
+		glMemoryBarrier(GL_ALL_BARRIER_BITS);
+
+		//////////////////////////////////////////////////
+		// Framebuffer composition
+		//////////////////////////////////////////////////
+
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+
+		#if SGL_BUILD_DEBUG
+			glReadBuffer(drawBuffers[RT_POSITION]);
+			glBlitFramebuffer(0, 0, fboSize.x, fboSize.y, 0, fboSize.y / 2, fboSize.x / 2, fboSize.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+			glReadBuffer(drawBuffers[RT_NORMAL]);
+			glBlitFramebuffer(0, 0, fboSize.x, fboSize.y, fboSize.x / 2, fboSize.y / 2, fboSize.x, fboSize.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+			glReadBuffer(drawBuffers[RT_COLOR]);
+			glBlitFramebuffer(0, 0, fboSize.x, fboSize.y, 0, 0, fboSize.x / 2, fboSize.y / 2, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+			
+			glReadBuffer(GL_COLOR_ATTACHMENT4);
+			glBlitFramebuffer(0, 0, fboSize.x, fboSize.y, fboSize.x / 2, 0, fboSize.x, fboSize.y / 2, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+		#else
+			glReadBuffer(GL_COLOR_ATTACHMENT4);
+			glBlitFramebuffer(0, 0, fboSize.x, fboSize.y, 0, 0, fboSize.x, fboSize.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+		#endif
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
