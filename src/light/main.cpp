@@ -511,6 +511,58 @@ struct alignas(16) PointLight
 	};
 };
 
+struct alignas(16) SpotLight
+{
+	vec3 position;
+
+	vec3 direction;
+
+	vec3 color;
+
+	float32 innerCone;
+
+	float32 outerCone;
+
+	float32 radius;
+
+	float32 intensity;
+};
+
+class SpotLightBuffer
+{
+public:
+	uint32 name;
+	uint32 count;
+	uint32 maxCount;
+	Array<SpotLight> lights;
+
+	FORCE_INLINE void init()
+	{
+		maxCount = 16;
+		glGenBuffers(1, &name);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, name);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, 4 * sizeof(uint32) + maxCount * sizeof(SpotLight), nullptr, GL_DYNAMIC_DRAW);
+	}
+
+	FORCE_INLINE void update()
+	{
+		count = lights.getCount();
+		if (count > maxCount)
+		{
+			// Realloc
+			glBufferData(GL_SHADER_STORAGE_BUFFER, 4 * sizeof(uint32) + maxCount * sizeof(SpotLight), nullptr, GL_DYNAMIC_DRAW);
+		}
+
+		glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(uint32), &count);
+		glBufferSubData(GL_SHADER_STORAGE_BUFFER, 4 * sizeof(uint32), count * sizeof(SpotLight), *lights);
+	}
+
+	FORCE_INLINE void bind(uint32 slot)
+	{
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, slot, name);
+	}
+};
+
 int32 main()
 {
 	/**
@@ -549,6 +601,8 @@ int32 main()
 	// Program setup
 	//////////////////////////////////////////////////
 
+	system("xdotool key ctrl+z space");
+
 	// Setup perlin noise tables
 	uint32 perlinTables[2];
 	const sizet perlinTableSize = 0x100 * (sizeof(int32) + sizeof(Vec3<float32, false>));
@@ -573,77 +627,6 @@ int32 main()
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, marchingTable);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(edgeConnectList.array), edgeConnectList.array, GL_STATIC_DRAW);
 	
-#if 0
-	ShaderProgram drawProg;
-	uint32 drawShader = glCreateShader(GL_COMPUTE_SHADER);
-
-	{
-		FileReader source = "src/light/shaders/volume/.comp";
-		const char * buffer = source.get<char>();
-		glShaderSource(drawShader, 1, &buffer, nullptr);
-		glCompileShader(drawShader);
-		drawProg.setShader(drawShader);
-
-		int32 status = 0;
-		glGetShaderiv(drawShader, GL_COMPILE_STATUS, &status);
-		if (status == GL_FALSE) printf("shader not compiled\n");
-	}
-	
-	drawProg.link();
-	drawProg.bind();
-	if (drawProg.getStatus() == 0) printf("draw program not linked correctly\n");
-	
-	ShaderProgram genProg;
-	uint32 cShader = glCreateShader(GL_COMPUTE_SHADER);
-
-	{
-		FileReader source = "src/light/shaders/generation/.comp";
-		const char * buffer = source.get<char>();
-		glShaderSource(cShader, 1, &buffer, nullptr);
-		glCompileShader(cShader);
-		genProg.setShader(cShader);
-
-		int32 status = 0;
-		glGetShaderiv(cShader, GL_COMPILE_STATUS, &status);
-		if (status == GL_FALSE) printf("shader not compiled\n");
-	}
-	
-	genProg.link();
-	genProg.bind();
-	if (genProg.getStatus() == 0) printf("generation program not linked correctly\n");
-
-	ShaderProgram terrainProg = initTerrainProg();
-
-	uint32 drawFbo;
-	glGenFramebuffers(1, &drawFbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, drawFbo);
-
-	uint32 colorBuffer;
-	glGenTextures(1, &colorBuffer);
-	glBindTexture(GL_TEXTURE_2D, colorBuffer);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, fboSize.x, fboSize.y, 0, GL_RGBA, GL_FLOAT, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	uint32 volumeData;
-	glGenTextures(1, &volumeData);
-	glBindTexture(GL_TEXTURE_3D, volumeData);
-	glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, 256, 256, 256, 0, GL_RED, GL_FLOAT, nullptr);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	/// Generate volume data
-	LOG("generating volume data ...\n");
-	genProg.bind();
-	glBindImageTexture(0, volumeData, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, perlinTables);
-	glDispatchCompute(256 / 8, 256 / 8, 256 / 8);
-	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-	LOG("volume data generated ...\n");
-#else
 	ShaderProgram fogProg;
 	{
 		uint32 shader = glCreateShader(GL_COMPUTE_SHADER);
@@ -919,34 +902,12 @@ int32 main()
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, perlinTables[1]);
 	glDispatchCompute(256 / 8, 256 / 8, 256 / 8);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-#endif
 
 	//////////////////////////////////////////////////
 	// Lights setup
 	//////////////////////////////////////////////////
 	
 	Array<PointLight> pointLights;
-	pointLights.push(PointLight{
-		vec3(0.f, 6.f, 0.f),
-		vec3(0.f, 0.f, 2.f)
-	});
-	pointLights.push(PointLight{
-		vec3(-5.f, 9.f, 4.f),
-		vec3(2.f, 0.f, 0.f),
-	});
-	pointLights.push(PointLight{
-		vec3(5.f, 8.f, 8.f),
-		vec3(1.3f, 1.5f, 0.4f),
-	});
-	pointLights.push(PointLight{
-		vec3(-5.f, 5.f, -10.f),
-		vec3(0.f, 2.f, 0.f),
-	});
-
-	pointLights[0].radius = 4.5f;
-	pointLights[1].radius = 4.5f;
-	pointLights[2].radius = 10.f;
-	pointLights[3].radius = 2.f;
 
 	uint32 pointLightsBuffer;
 	uint32 numLights = pointLights.getCount();
@@ -955,6 +916,19 @@ int32 main()
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(vec4) + pointLights.getBytes(), nullptr, GL_DYNAMIC_DRAW);
 	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(uint32), &numLights);
 	glBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(vec4), pointLights.getBytes(), *pointLights);
+
+	SpotLightBuffer spotLightBuffer;
+	spotLightBuffer.init();
+	spotLightBuffer.lights.add(SpotLight{
+		vec3{0.f, 0.f, 0.f},
+		vec3{1.f, 0.f, 0.f},
+		vec3{1.f, 0.9f, 0.8f},
+		0.9f,
+		0.8f,
+		20.f,
+		0.f
+	});
+	spotLightBuffer.update();
 
 	//////////////////////////////////////////////////
 	// Camera setup
@@ -968,12 +942,6 @@ int32 main()
 	//////////////////////////////////////////////////
 	// Main loop
 	//////////////////////////////////////////////////
-
-	// Start recording
-#if 0
-	ubyte * videoBuffer = new ubyte[fboSize.x * fboSize.y * 4];
-	FILE * videoOut = popen("ffmpeg -r 30 -vsync 1 -f rawvideo -pix_fmt rgba -s 1920x1080 -i - -threads 0 -preset fast -y -pix_fmt yuv420p -crf 21 -framerate 30 -vf vflip ~/videos/output.mp4", "w");
-#endif
 
 	bool bRunning = true;
 	while (bRunning)
@@ -1020,6 +988,28 @@ int32 main()
 					axes["mouseX"] = e.motion.xrel;
 					axes["mouseY"] = e.motion.yrel;
 					break;
+
+				case SDL_MOUSEBUTTONUP:
+				{
+					if (e.button.button == SDL_BUTTON_LEFT)
+					{
+						spotLightBuffer.lights.add(SpotLight{
+							cameraLocation,
+							cameraRotation.forward(),
+							//vec3(Math::abs(Math::cos(currTime)), Math::abs(Math::cos(currTime + M_PI_2 / 3.f)), Math::abs(Math::cos(currTime + M_PI_2 * 2.f / 3.f))),
+							vec3(1.f, 0.8f, 0.9f),
+							0.91,
+							0.78,
+							10.f,
+							0.8f
+						});
+					}
+					else if (e.button.button == SDL_BUTTON_RIGHT)
+					{
+						spotLightBuffer.lights[0].intensity = Math::abs(1.f - spotLightBuffer.lights[0].intensity);
+					}
+					break;
+				}
 			}
 		}
 
@@ -1047,40 +1037,23 @@ int32 main()
 		const vec3 cameraDir = cameraRotation.forward();
 		cameraDir.print();
 
+		struct Lerp
+		{
+			FORCE_INLINE vec3 operator()(const vec3 & a, const vec3 & b, float32 alpha) const
+			{
+				return alpha * b + (1.f - alpha) * a;
+			}
+		};
+
 		// Update point light
-		pointLights[2].pos = cameraLocation;
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, pointLightsBuffer);
-		glBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(vec4), pointLights.getBytes(), *pointLights);
+		spotLightBuffer.lights[0].position = cameraLocation;
+		spotLightBuffer.lights[0].direction = cameraRotation.forward();
+		spotLightBuffer.update();
 
 		//////////////////////////////////////////////////
 		// Draw
 		//////////////////////////////////////////////////
 
-	#if 0
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-		const point2 hFboSize = fboSize;
-
-		drawProg.bind();
-		drawProg.setUniform<float32>("time", currTime);
-		drawProg.setUniform<point2>("fboSize", hFboSize);
-		drawProg.setUniform<float32>("samplingStep", 0.5f);
-		drawProg.setUniform<const mat4&>("viewMatrix", viewMatrix);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_3D, volumeData);
-		glBindImageTexture(0, colorBuffer, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-		glDispatchCompute(hFboSize.x / 32, hFboSize.y / 32, 1);
-
-		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-
-		// Test generation by blitting to viewport
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, drawFbo);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-		glReadBuffer(GL_COLOR_ATTACHMENT0);
-		glBlitFramebuffer(0, 0, hFboSize.x, hFboSize.y, 0, 0, fboSize.x, fboSize.y, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	#else
 		const ivec3 radius(4, 3, 4);
 		uint32 numVertices = 0;
 
@@ -1238,6 +1211,7 @@ int32 main()
 		renderProg.setUniform<const mat4&>("viewMatrix", viewMatrix);
 		renderProg.setUniform<const vec3&>("cameraLocation", cameraLocation);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, pointLightsBuffer);
+		spotLightBuffer.bind(1);
 		for (uint32 i = RT_POSITION; i <= RT_COLOR; ++i)
 		{
 			glActiveTexture(GL_TEXTURE0 + i);
@@ -1276,8 +1250,6 @@ int32 main()
 		#endif
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	#endif
 
 		// Consume mouse input
 		axes["mouseX"] = 0.f;

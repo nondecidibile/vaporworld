@@ -14,6 +14,18 @@ struct PointLight
 	float radius;
 };
 
+struct SpotLight
+{
+	vec3 pos;
+	vec3 dir;
+	vec3 color;
+	float pad;
+	float innerCone;
+	float outerCone;
+	float radius;
+	float intensity;
+};
+
 layout(binding = 0, std430) buffer PointLightBuffer
 {
 	/// Num point lights
@@ -22,6 +34,14 @@ layout(binding = 0, std430) buffer PointLightBuffer
 	/// Lights data
 	PointLight lights[];
 } pointLights;
+
+layout(binding = 1, std430) buffer SpotLightBuffer
+{
+	uint numLights;
+
+	/// Lights data
+	SpotLight lights[];
+} spotLights;
 
 layout(binding = 10) uniform sampler3D fogData;
 layout(binding = 0) uniform sampler2D inPos;
@@ -165,11 +185,11 @@ void main()
 	depth = texture(inDepth, wuv).r;
 
 	vec3 albedo = (sin(inVert.pos) * 0.5f + 0.5f);
-	vec3 ambient = vec3(0.1f, 0.1f, 0.2f);
+	vec3 ambient = vec3(0.05f, 0.05f, 0.2f);
 	vec3 diffuse = vec3(0.f);
 	vec3 specular = vec3(0.f);
 
-	for (int i = 0; i < pointLights.numLights; ++i)
+	/* for (int i = 0; i < pointLights.numLights; ++i)
 	{
 		const vec3 lightPos = pointLights.lights[i].pos;
 		const vec3 lightColor = pointLights.lights[i].color;
@@ -183,6 +203,27 @@ void main()
 
 		diffuse += max(dot(lightDir, -inVert.norm), 0.f) * lightColor * exp(-lightDist / lightRadius);
 		specular += pow(max(dot(reflectionDir, viewDir), 0.f), 16.f) * lightColor * exp(-lightDist / lightRadius);
+	} */
+
+	for (uint i = 0; i < spotLights.numLights; ++i)
+	{
+		const vec3 lightPos = spotLights.lights[i].pos;
+		const vec3 lightColor = spotLights.lights[i].color;
+		const vec3 lightRay = inVert.pos - lightPos;
+		const float lightDist = length(lightRay);
+		const vec3 lightDir = normalize(lightRay);
+		const float lightRadius = spotLights.lights[i].radius;
+		const vec3 reflectedRay = reflect(lightDir, inVert.norm);
+		const vec3 viewDir = normalize(inVert.pos - cameraLocation);
+
+		float alpha = dot(spotLights.lights[i].dir, lightDir);
+		float epsilon = spotLights.lights[i].innerCone - spotLights.lights[i].outerCone;
+		float intensity = clamp((alpha - spotLights.lights[i].outerCone) / epsilon, 0.f, 1.f) * spotLights.lights[i].intensity * exp(-(lightDist * lightDist) / spotLights.lights[i].radius);
+
+		float diffuseStrength = max(dot(lightDir, -inVert.norm), 0.f);
+		float specularStrength = pow(clamp(dot(-reflectedRay, viewDir), 0.f, 1.f), 4.f);
+		diffuse += diffuseStrength * lightColor * intensity;
+		specular += specularStrength * lightColor * intensity * 0.333f;
 	}
 
 	/* const vec3 lightOrientation = normalize(vec3(-0.5f, -1.f, 0.9f));
@@ -208,6 +249,8 @@ void main()
 	//imageStore(backbuffer, ivec2(gl_GlobalInvocationID.xy), vec4(finalColor, 1.f));
 	//imageStore(backbuffer, ivec2(gl_GlobalInvocationID.xy), vec4(mix(finalColor, val.rgb * vec3(0.1f, 0.2f, 0.5f), pow(depth, 2.f)), 1.f));
 	imageStore(backbuffer, ivec2(gl_GlobalInvocationID.xy), vec4(mix(finalColor, val.rgb/*  * vec3(0.2f, 0.3f, 0.7f) */, val.a), 1.f));
+	//imageStore(backbuffer, ivec2(gl_GlobalInvocationID.xy), vec4(finalColor, 1.f));
+	//imageStore(backbuffer, ivec2(gl_GlobalInvocationID.xy), vec4(vec3(spotLights.lights[0].dir), 1.f));
 
 	/// Compute noise value
 	//const float val = sampleVolume(traceStart, traceEnd, 0.12f, 32);
